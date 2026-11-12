@@ -1,4 +1,9 @@
 dist/
+work/
+*.p12
+.rnd
+NotchLC-log.txt
+*-private.pem
 node_modules/
 *.log
 .DS_Store

@@ -8,6 +8,7 @@
     <link rel="stylesheet" href="css/show-hint.min.css">
     <link rel="stylesheet" href="css/foldgutter.min.css">
     <link rel="stylesheet" href="css/panel.css">
+<link rel="stylesheet" href="../css/accessibility.css">
 </head>
 <body class="ae-dark">
 
@@ -52,7 +53,7 @@
     <!-- ── Search / Replace Bar ── -->
     <div id="search-bar" class="hidden">
         <div id="search-row">
-            <input type="text" id="search-input" placeholder="Find…" spellcheck="false" autocomplete="off">
+            <input type="text" id="search-input" aria-label="Find in editor" placeholder="Find…" spellcheck="false" autocomplete="off">
             <span id="search-count"></span>
             <button class="sb-btn" id="btn-prev" title="Previous">▲</button>
             <button class="sb-btn" id="btn-next" title="Next">▼</button>
@@ -60,7 +61,7 @@
             <button class="sb-btn sb-close" id="btn-search-close" title="Close (Esc)">✕</button>
         </div>
         <div id="replace-row" class="hidden">
-            <input type="text" id="replace-input" placeholder="Replace with…" spellcheck="false" autocomplete="off">
+            <input type="text" id="replace-input" aria-label="Replace in editor" placeholder="Replace with…" spellcheck="false" autocomplete="off">
             <button class="sb-btn" id="btn-replace-one">Replace</button>
             <button class="sb-btn" id="btn-replace-all">All</button>
         </div>
@@ -68,7 +69,7 @@
 
     <!-- ── Editor ── -->
     <div id="editor-wrapper">
-        <textarea id="code-editor"></textarea>
+        <textarea id="code-editor" aria-label="Script or expression code"></textarea>
     </div>
 
     <!-- ── Output / Debug ── -->
@@ -100,25 +101,25 @@
     </div>
 
     <!-- ── Script Library Modal ── -->
-    <div id="lib-modal-overlay">
-        <div id="lib-modal">
+    <div id="lib-modal-overlay" aria-hidden="true">
+        <div id="lib-modal" role="dialog" aria-modal="true" aria-label="Snippet library" tabindex="-1">
             <div id="lib-sidebar">
                 <div id="lib-sidebar-header">
                     <h3>Snippets</h3>
                     <button class="btn btn-icon-only" id="btn-lib-add" title="New Snippet">✚</button>
                 </div>
                 <div id="lib-sidebar-search-row">
-                    <input type="text" id="lib-search" placeholder="Search title or code..." spellcheck="false" autocomplete="off">
+                    <input type="text" id="lib-search" aria-label="Search snippets" placeholder="Search title or code..." spellcheck="false" autocomplete="off">
                 </div>
                 <div id="lib-list"></div>
             </div>
             
             <div id="lib-editor-area">
                 <div id="lib-editor-header">
-                    <input type="text" id="lib-snippet-title" placeholder="Snippet Title..." spellcheck="false" autocomplete="off">
+                    <input type="text" id="lib-snippet-title" aria-label="Snippet title" placeholder="Snippet Title..." spellcheck="false" autocomplete="off">
                 </div>
                 <div id="lib-editor-wrap">
-                    <textarea id="lib-editor-ta"></textarea>
+                    <textarea id="lib-editor-ta" aria-label="Snippet code"></textarea>
                 </div>
                 <div id="lib-editor-footer">
                     <div id="lib-status"></div>
@@ -137,8 +138,8 @@
     </div>
     
     <!-- ── Custom Confirm Modal ── -->
-    <div id="custom-confirm-overlay" class="hidden">
-        <div id="custom-confirm-modal">
+    <div id="custom-confirm-overlay" class="hidden" aria-hidden="true">
+        <div id="custom-confirm-modal" role="alertdialog" aria-modal="true" aria-labelledby="custom-confirm-title" aria-describedby="custom-confirm-message" tabindex="-1">
             <div id="custom-confirm-title">Warning</div>
             <div id="custom-confirm-message">Are you sure?</div>
             <div id="custom-confirm-buttons">
@@ -171,5 +172,6 @@
 <script src="lib/CSInterface.js"></script>
 <script src="js/panel.js" defer></script>
 
+<script src="../js/accessibility.js" defer></script>
 </body>
 </html>

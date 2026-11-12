@@ -6,6 +6,7 @@ param(
     [string]$InstallPath = (Join-Path $env:APPDATA 'Adobe\CEP\extensions\AE-ExpressionEditor')
 )
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'Verify-Update.ps1')
 function Get-ExpressionStudioManifestVersion([string]$Directory) {
     $manifestPath = Join-Path $Directory 'CSXS\manifest.xml'
     if (!(Test-Path -LiteralPath $manifestPath -PathType Leaf)) { throw 'The extension manifest is missing; refusing to replace this directory.' }
@@ -93,8 +94,10 @@ if ([version]$version -le $installed) { Write-Output "Expression Studio $install
 $assetName = "Expression-Studio-$version.zip"
 $package = @($release.assets | Where-Object name -eq $assetName)
 $checksum = @($release.assets | Where-Object name -eq 'SHA256SUMS.txt')
-if ($package.Count -ne 1 -or $checksum.Count -ne 1) { throw 'The release does not contain a unique package and checksum.' }
-foreach ($asset in @($package[0], $checksum[0])) {
+$signedManifest = @($release.assets | Where-Object name -eq 'update-manifest.json')
+$signedSignature = @($release.assets | Where-Object name -eq 'update-manifest.sig')
+if ($package.Count -ne 1 -or $checksum.Count -ne 1 -or $signedManifest.Count -ne 1 -or $signedSignature.Count -ne 1) { throw 'The release must contain a unique package, checksum and signed manifest.' }
+foreach ($asset in @($package[0], $checksum[0], $signedManifest[0], $signedSignature[0])) {
     $expected = 'https://github.com/rodrigoblergh/expression-studio/releases/download/' + $release.tag_name + '/' + $asset.name
     if ($asset.browser_download_url -cne $expected) { throw 'Unexpected release asset URL.' }
 }
@@ -105,9 +108,15 @@ if (!$PSCmdlet.ShouldProcess($InstallPath, "Install Expression Studio $version (
 $work = Join-Path ([IO.Path]::GetTempPath()) ('ExpressionStudio-update-' + [guid]::NewGuid().ToString('N'))
 [IO.Directory]::CreateDirectory($work) | Out-Null
 $zipPath = Join-Path $work $assetName; $sumPath = Join-Path $work 'SHA256SUMS.txt'; $stage = Join-Path $work 'stage'
+$manifestPath=Join-Path $work 'update-manifest.json'; $signaturePath=Join-Path $work 'update-manifest.sig'
+Invoke-WebRequest -Uri $signedManifest[0].browser_download_url -Headers $headers -OutFile $manifestPath -TimeoutSec 30
+Invoke-WebRequest -Uri $signedSignature[0].browser_download_url -Headers $headers -OutFile $signaturePath -TimeoutSec 30
+$verified = Read-VerifiedUpdateManifest $manifestPath $signaturePath
+if ($verified.version -cne $version -or $verified.assetName -cne $assetName) { throw 'Signed manifest does not match the selected release.' }
 Invoke-WebRequest -Uri $package[0].browser_download_url -Headers $headers -OutFile $zipPath
 Invoke-WebRequest -Uri $checksum[0].browser_download_url -Headers $headers -OutFile $sumPath
 Assert-ExpressionStudioChecksum $zipPath $sumPath $assetName
+if ((Get-Item -LiteralPath $zipPath).Length -ne $verified.size -or (Get-FileHash -LiteralPath $zipPath -Algorithm SHA256).Hash.ToLowerInvariant() -cne $verified.sha256) { throw 'Package does not match the signed release.' }
 Expand-ExpressionStudioPackage $zipPath $stage $version
 # Recheck immediately before replacing files; never stop After Effects automatically.
 if (Get-Process -Name AfterFX -ErrorAction SilentlyContinue) { throw 'After Effects started during the download. Close it and retry.' }

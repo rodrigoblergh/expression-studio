@@ -1,0 +1,8 @@
+/* Remain visible on CEP versions without :focus-visible support. */
+button:focus, [role="button"]:focus, [role="tab"]:focus,
+input:focus, select:focus, textarea:focus, a:focus {
+    outline: 2px solid var(--acc, #4a9cd4);
+    outline-offset: 2px;
+}
+#storage-warning, #host-activity { flex-shrink: 0; }
+#update-bar { background: var(--bg1, #222); color: var(--t0, #c8c8c8); border-bottom: 1px solid var(--bd, #3a3a3a); }

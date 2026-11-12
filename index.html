@@ -6,13 +6,14 @@
     <link rel="stylesheet" href="lib/cm/css/codemirror.min.css">
     <link rel="stylesheet" href="lib/cm/css/show-hint.min.css">
     <link rel="stylesheet" href="css/panel.css">
+<link rel="stylesheet" href="css/accessibility.css">
 </head>
 <body class="ae-dark">
 
 <!-- ── Master Tabs ── -->
-<div id="master-tabs">
-    <button class="master-tab active" data-target="expr-container">✦ Expressions</button>
-    <button class="master-tab" data-target="script-container">⌨ Code Editor</button>
+<div id="master-tabs" role="tablist" aria-label="Editor views">
+    <button id="tab-expressions" role="tab" aria-controls="expr-container" aria-selected="true" tabindex="0" class="master-tab active" data-target="expr-container">✦ Expressions</button>
+    <button id="tab-code" role="tab" aria-controls="script-container" aria-selected="false" tabindex="-1" class="master-tab" data-target="script-container">⌨ Code Editor</button>
 </div>
 
 <div id="update-bar" style="padding:4px 8px;font-size:11px;flex-shrink:0;">
@@ -20,7 +21,7 @@
     <span id="update-status" role="status" aria-live="polite"></span>
 </div>
 
-<div id="expr-container" class="master-container active">
+<div id="expr-container" role="tabpanel" aria-labelledby="tab-expressions" aria-hidden="false" class="master-container active">
 <div id="app">
 
     <!-- ── Toolbar ── -->
@@ -33,7 +34,7 @@
         <div class="toolbar-sep"></div>
 
         <!-- Search filter -->
-        <input type="text" id="filter-input" placeholder="Filter layers / expressions…" spellcheck="false" autocomplete="off">
+        <input type="text" id="filter-input" aria-label="Filter layers and expressions" placeholder="Filter layers / expressions…" spellcheck="false" autocomplete="off">
         <button class="btn-icon-only" id="btn-filter-clear" title="Clear filter">✕</button>
 
         <div class="toolbar-spacer"></div>
@@ -50,7 +51,7 @@
 
     <!-- ── Property filter bar ── -->
     <div id="prop-filter-bar">
-        <div id="prop-filter-header" onclick="togglePropFilter()">
+        <div id="prop-filter-header" role="button" tabindex="0" aria-controls="prop-filter-body" aria-expanded="false" onclick="togglePropFilter()">
             <span id="prop-filter-label">Property Filter <span id="prop-filter-badge" class="hidden">0</span></span>
             <span id="prop-filter-chevron">▸</span>
         </div>
@@ -72,7 +73,7 @@
             </div>
             <!-- Custom property input -->
             <div id="prop-custom-row" style="position:relative;">
-                <input type="text" id="prop-custom-input" placeholder="Add custom property name…" spellcheck="false" autocomplete="off">
+                <input type="text" id="prop-custom-input" aria-label="Custom property filter" placeholder="Add custom property name…" spellcheck="false" autocomplete="off">
                 <button class="btn" id="btn-prop-add">Add</button>
                 <button class="btn" id="btn-prop-clear-all" title="Clear all filters">Clear</button>
                 <div id="prop-autocomplete-list" class="hidden"></div>
@@ -108,13 +109,13 @@
 
     <!-- ── Status bar ── -->
     <div id="status-bar">
-        <span id="status-msg"></span>
+        <span id="status-msg" role="status" aria-live="polite"></span>
         <span id="change-badge" class="hidden">0 changed</span>
     </div>
 
     <!-- ── Bulk Replace Modal ── -->
-    <div id="bulk-modal-overlay">
-        <div id="bulk-modal">
+    <div id="bulk-modal-overlay" aria-hidden="true">
+        <div id="bulk-modal" role="dialog" aria-modal="true" aria-label="Bulk replace expressions" tabindex="-1">
             <h3>⇄ Bulk Replace</h3>
 
             <div class="bm-mode-row">
@@ -126,11 +127,11 @@
             <div id="bm-exact-fields">
                 <div class="bm-field">
                     <span class="bm-label">Find expression (exact)</span>
-                    <textarea class="bm-textarea" id="bm-find" placeholder="e.g. content(&quot;Shape 2&quot;).content(&quot;Path 4&quot;).path"></textarea>
+                    <textarea class="bm-textarea" id="bm-find" aria-label="Find exact expression" placeholder="e.g. content(&quot;Shape 2&quot;).content(&quot;Path 4&quot;).path"></textarea>
                 </div>
                 <div class="bm-field">
                     <span class="bm-label">Replace with</span>
-                    <textarea class="bm-textarea" id="bm-replace" placeholder="New expression…"></textarea>
+                    <textarea class="bm-textarea" id="bm-replace" aria-label="Replacement expression" placeholder="New expression…"></textarea>
                 </div>
             </div>
 
@@ -138,11 +139,11 @@
             <div id="bm-pattern-fields" style="display:none;">
                 <div class="bm-field">
                     <span class="bm-label">Find function name</span>
-                    <input class="bm-input" id="bm-func-find" placeholder="e.g. loopOut">
+                    <input class="bm-input" id="bm-func-find" aria-label="Find function name" placeholder="e.g. loopOut">
                 </div>
                 <div class="bm-field">
                     <span class="bm-label">Replace with function name</span>
-                    <input class="bm-input" id="bm-func-replace" placeholder="e.g. loopIn">
+                    <input class="bm-input" id="bm-func-replace" aria-label="Replacement function name" placeholder="e.g. loopIn">
                 </div>
                 <p class="bm-hint">
                     Replaces the function name but <strong>keeps all arguments unchanged</strong>.<br>
@@ -161,25 +162,25 @@
     </div>
 
     <!-- ── Expression Library Modal ── -->
-    <div id="lib-modal-overlay">
-        <div id="lib-modal">
+    <div id="lib-modal-overlay" aria-hidden="true">
+        <div id="lib-modal" role="dialog" aria-modal="true" aria-label="Snippet library" tabindex="-1">
             <div id="lib-sidebar">
                 <div id="lib-sidebar-header">
                     <h3>Snippets</h3>
                     <button class="btn btn-icon-only" id="btn-lib-add" title="New Snippet">✚</button>
                 </div>
                 <div id="lib-sidebar-search-row">
-                    <input type="text" id="lib-search" placeholder="Search title or code..." spellcheck="false" autocomplete="off">
+                    <input type="text" id="lib-search" aria-label="Search snippets" placeholder="Search title or code..." spellcheck="false" autocomplete="off">
                 </div>
                 <div id="lib-list"></div>
             </div>
             
             <div id="lib-editor-area">
                 <div id="lib-editor-header">
-                    <input type="text" id="lib-snippet-title" placeholder="Snippet Title..." spellcheck="false" autocomplete="off">
+                    <input type="text" id="lib-snippet-title" aria-label="Snippet title" placeholder="Snippet Title..." spellcheck="false" autocomplete="off">
                 </div>
                 <div id="lib-editor-wrap">
-                    <textarea id="lib-editor-ta"></textarea>
+                    <textarea id="lib-editor-ta" aria-label="Snippet code"></textarea>
                 </div>
                 <div id="lib-editor-footer">
                     <div id="lib-status"></div>
@@ -197,8 +198,8 @@
     </div>
 
     <!-- ── Custom Confirm Modal ── -->
-    <div id="custom-confirm-overlay" class="hidden">
-        <div id="custom-confirm-modal">
+    <div id="custom-confirm-overlay" class="hidden" aria-hidden="true">
+        <div id="custom-confirm-modal" role="alertdialog" aria-modal="true" aria-labelledby="custom-confirm-title" aria-describedby="custom-confirm-message" tabindex="-1">
             <div id="custom-confirm-title">Warning</div>
             <div id="custom-confirm-message">Are you sure?</div>
             <div id="custom-confirm-buttons">
@@ -211,24 +212,11 @@
 </div> <!-- End of #app -->
 </div> <!-- End of #expr-container -->
 
-<div id="script-container" class="master-container">
+<div id="script-container" role="tabpanel" aria-labelledby="tab-code" aria-hidden="true" class="master-container">
     <iframe id="script-iframe" src="script_editor/index.html" title="After Effects script editor"></iframe>
 </div>
 
-<script>
-    // Master Tabs logic
-    document.querySelectorAll('.master-tab').forEach(function(tab) {
-        tab.addEventListener('click', function() {
-            var targetId = this.getAttribute('data-target');
-            
-            document.querySelectorAll('.master-tab').forEach(function(t) { t.classList.remove('active'); });
-            document.querySelectorAll('.master-container').forEach(function(c) { c.classList.remove('active'); });
-            
-            this.classList.add('active');
-            document.getElementById(targetId).classList.add('active');
-        });
-    });
-</script>
+
 
 <script src="lib/cm/codemirror.min.js"></script>
 <script src="lib/cm/mode/javascript/javascript.min.js"></script>
@@ -248,5 +236,6 @@
 <script src="lib/CSInterface.js"></script>
 <script src="js/panel.js" defer></script>
 <script src="js/updates.js" defer></script>
+<script src="js/accessibility.js" defer></script>
 </body>
 </html>

@@ -11,7 +11,19 @@ function host(source, extra = {}) {
   const calls = { begin: 0, end: 0 };
   const context = vm.createContext({CompItem, JSON, PropertyType: { PROPERTY: 1, INDEXED_GROUP: 2, NAMED_GROUP: 3 },
     app: { project: { activeItem: comp }, beginUndoGroup() { calls.begin++; }, endUndoGroup() { calls.end++; } }, ...extra});
-  vm.runInContext(fs.readFileSync(path.join(__dirname, '..', source), 'utf8'), context);
+  const loaded = [];
+  const load = (filename) => {
+    const resolved = path.resolve(filename);
+    const previous = context.$.fileName;
+    context.$.fileName = resolved;
+    loaded.push(path.relative(path.join(__dirname, '..'), resolved).replaceAll('\\', '/'));
+    try { return vm.runInContext(fs.readFileSync(resolved, 'utf8'), context, {filename: resolved}); }
+    finally { context.$.fileName = previous; }
+  };
+  context.$ = { fileName: '', evalFile: load };
+  context.__loaded = loaded;
+  context.__load = (name) => load(path.join(__dirname, '..', name));
+  context.__load(source);
   return { context, comp, calls };
 }
 function property() {
@@ -97,4 +109,31 @@ test('editing refuses ambiguous duplicate property routes',()=>{
   const h=targetFixture();h.layer.numProperties=2;
   const r=JSON.parse(h.context.applyOneExpression(JSON.stringify(h.target),'new',true));
   assert.equal(r.success,false);assert.match(r.error,/Duplicate/);assert.equal(h.p.writes,0);
+});
+
+test('both host entry points use the same implementation and preserve active scan transfers', () => {
+  const h = host(sources[0]);
+  h.context.AEExpressionScanTransfers.keep = {text:'data',created:123};
+  h.context.__load(sources[1]);
+  assert.equal(h.context.AEExpressionScanTransfers.keep.text, 'data');
+  assert.equal(h.context.__loaded.filter(p => p === 'jsx/editor-common.jsx').length, 2);
+  assert.equal(typeof h.context.scanComp, 'function');
+  assert.equal(typeof h.context.runScript, 'function');
+  assert.equal(typeof h.context.readFileContent, 'function');
+});
+test('standalone Code Editor host loads JSON fallback and shared operations', () => {
+  const h = host(sources[1], {JSON: undefined});
+  assert.ok(h.context.__loaded.includes('jsx/json2.jsx'));
+  assert.equal(JSON.parse(h.context.runScript('1 + 2')).result, '3');
+  assert.equal(typeof h.context.applyExpressionToSelectedProperties, 'function');
+});
+test('project identity is the saved file path or null', () => {
+  const h = host(sources[0]);
+  h.comp.numLayers = 0;
+  h.context.app.project.file = {fsName:'C:/projects/one.aep'};
+  assert.equal(JSON.parse(h.context.scanComp('[]')).projectPath,'C:/projects/one.aep');
+  h.context.app.project.file = null;
+  assert.equal(JSON.parse(h.context.scanComp('[]')).projectPath,null);
+  Object.defineProperty(h.context.app.project,'file',{get(){throw new Error('unavailable');}});
+  assert.equal(JSON.parse(h.context.scanComp('[]')).projectPath,null);
 });

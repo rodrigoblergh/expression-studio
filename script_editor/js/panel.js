@@ -42,6 +42,7 @@ document.addEventListener("DOMContentLoaded", function () {
     loadRecent();
     loadRecoveryDrafts();
     loadLibDrafts();
+    installHostActivityIndicator();
     detectTheme();
     initEditor();
     initMode();
@@ -167,7 +168,7 @@ function setMode(mode, isInitial) {
         modeDocuments.activeMode = currentMode;
     }
     try {
-        localStorage.setItem("ae-editor-mode", currentMode);
+        writePanelStorage("ae-editor-mode", currentMode);
     } catch (e) {}
 
     var btnScript = document.getElementById("mode-btn-script");
@@ -249,17 +250,18 @@ function stashCurrentDraft(replacementContent) {
     recoveryDrafts.unshift({ mode: currentMode, name: currentName || "Untitled",
         path: currentPath, content: editor.getValue(), savedAt: Date.now() });
     recoveryDrafts = recoveryDrafts.slice(0, 10);
-    try { localStorage.setItem("ae-editor-recovery-v1", JSON.stringify(recoveryDrafts)); } catch (e) {}
+    try { writePanelStorage("ae-editor-recovery-v1", JSON.stringify(recoveryDrafts)); } catch (e) {}
     updateRecentMenu();
 }
 
 function loadRecoveryDrafts() {
     try {
         var saved = JSON.parse(localStorage.getItem("ae-editor-recovery-v1") || "[]");
+        if (!Array.isArray(saved)) throw new Error("Invalid recovery data");
         recoveryDrafts = Array.isArray(saved) ? saved.filter(function (d) {
             return d && typeof d.content === "string" && (d.mode === "script" || d.mode === "expression");
         }).slice(0, 10) : [];
-    } catch (e) { recoveryDrafts = []; }
+    } catch (e) { recoveryDrafts = []; protectUnreadStorage("ae-editor-recovery-v1"); }
 }
 
 function restoreRecoveryDraft(index) {
@@ -278,7 +280,7 @@ function restoreRecoveryDraft(index) {
 
 function persistDocuments() {
     try {
-        localStorage.setItem("ae-editor-documents-v1", JSON.stringify({
+        writePanelStorage("ae-editor-documents-v1", JSON.stringify({
             script: modeDocuments.script, expression: modeDocuments.expression
         }));
     } catch (e) {}
@@ -288,13 +290,15 @@ function loadDocuments() {
     try {
         var saved = JSON.parse(localStorage.getItem("ae-editor-documents-v1") || "null");
         if (!saved) return;
+        if (typeof saved !== "object" || Array.isArray(saved)) throw new Error("Invalid saved documents");
         ["script", "expression"].forEach(function (mode) {
             var d = saved[mode];
+            if (d && typeof d.content !== "string") throw new Error("Invalid saved document");
             if (d && typeof d.content === "string") {
                 modeDocuments[mode] = newDocument(d.content, d.name, d.path, d.dirty);
             }
         });
-    } catch (e) {}
+    } catch (e) { protectUnreadStorage("ae-editor-documents-v1"); }
 }
 
 function documentToken() {
@@ -785,7 +789,7 @@ function initListeners() {
     document.getElementById("btn-clear-output").addEventListener("click", clearOutput);
     document.getElementById("theme-select").addEventListener("change", function () {
         applyTheme(this.value);
-        try { localStorage.setItem("ae-editor-theme", this.value); } catch (e) {}
+        try { writePanelStorage("ae-editor-theme", this.value); } catch (e) {}
     });
     document.getElementById("file-title").addEventListener("change", function () {
         var v = this.value.trim();
@@ -1212,12 +1216,12 @@ function removeFromRecent(path) {
 }
 
 function saveRecent() {
-    try { localStorage.setItem("ae-recent", JSON.stringify(recentScripts)); } catch (e) {}
+    try { writePanelStorage("ae-recent", JSON.stringify(recentScripts)); } catch (e) {}
 }
 
 function loadRecent() {
     try { var s = localStorage.getItem("ae-recent"); if (s) recentScripts = JSON.parse(s); }
-    catch (e) { recentScripts = []; }
+    catch (e) { recentScripts = []; protectUnreadStorage("ae-recent"); }
 }
 
 function updateRecentMenu() {
@@ -1262,8 +1266,9 @@ function libDraftKey(id) { return getLibStorageKey() + ":" + id; }
 function loadLibDrafts() {
     try {
         var stored = JSON.parse(localStorage.getItem("ae-editor-lib-drafts-v1") || "{}");
+        if (!stored || typeof stored !== "object" || Array.isArray(stored)) throw new Error("Invalid snippet drafts");
         libDrafts = stored && typeof stored === "object" ? stored : {};
-    } catch (e) { libDrafts = {}; }
+    } catch (e) { libDrafts = {}; protectUnreadStorage("ae-editor-lib-drafts-v1"); }
 }
 
 function saveLibDraft() {
@@ -1272,7 +1277,7 @@ function saveLibDraft() {
         code: libEditor.getValue(), title: document.getElementById("lib-snippet-title").value
     };
     document.getElementById("btn-lib-save").classList.add("changed");
-    try { localStorage.setItem("ae-editor-lib-drafts-v1", JSON.stringify(libDrafts)); } catch (e) {}
+    try { writePanelStorage("ae-editor-lib-drafts-v1", JSON.stringify(libDrafts)); } catch (e) {}
 }
 
 var DEFAULT_EXPR_LIB = [
@@ -1328,7 +1333,7 @@ function loadLibSnippets() {
     try {
         var data = localStorage.getItem(key);
         if (data) libSnippets = JSON.parse(data);
-    } catch (e) {}
+    } catch (e) { protectUnreadStorage(key); }
     if (!Array.isArray(libSnippets)) libSnippets = [];
 
     if (currentMode === "expression" && libSnippets.length === 0) {
@@ -1339,7 +1344,7 @@ function loadLibSnippets() {
 
 function saveLibSnippets() {
     var key = getLibStorageKey();
-    try { localStorage.setItem(key, JSON.stringify(libSnippets)); } catch (e) {}
+    try { writePanelStorage(key, JSON.stringify(libSnippets)); } catch (e) {}
 }
 
 function currentCmTheme() {
@@ -1447,7 +1452,7 @@ function saveCurrentSnippet() {
         if (libEditor) s.code = libEditor.getValue();
         saveLibSnippets();
         delete libDrafts[libDraftKey(currentSnippetId)];
-        try { localStorage.setItem("ae-editor-lib-drafts-v1", JSON.stringify(libDrafts)); } catch (e) {}
+        try { writePanelStorage("ae-editor-lib-drafts-v1", JSON.stringify(libDrafts)); } catch (e) {}
         renderLibSidebar();
         document.getElementById("btn-lib-save").classList.remove("changed");
         showLibStatus("Saved!");
@@ -1459,7 +1464,7 @@ function deleteCurrentSnippet() {
     showConfirm("Are you sure you want to delete this snippet?", "Delete Snippet", function() {
         libSnippets = libSnippets.filter(function(x) { return x.id !== currentSnippetId; });
         delete libDrafts[libDraftKey(currentSnippetId)];
-        try { localStorage.setItem("ae-editor-lib-drafts-v1", JSON.stringify(libDrafts)); } catch (e) {}
+        try { writePanelStorage("ae-editor-lib-drafts-v1", JSON.stringify(libDrafts)); } catch (e) {}
         saveLibSnippets();
         if (libSnippets.length > 0) openSnippet(libSnippets[0].id);
         else createNewSnippet();
@@ -1546,4 +1551,48 @@ if (document.getElementById("btn-confirm-ok")) {
         if (confirmCallback) confirmCallback();
         hideConfirm();
     });
+}
+
+
+// Storage failures remain visible independently of transient operation messages.
+var panelStorageWarning = "";
+var unreadStorageKeys = {};
+function protectUnreadStorage(key) {
+    unreadStorageKeys[key] = true;
+    showStorageWarning("Saved drafts/preferences could not be read and were retained. Save or copy current edits; recovery storage will not be overwritten in this session.");
+}
+function showStorageWarning(message) {
+    panelStorageWarning = message;
+    if (!document.createElement || !document.body) return;
+    var notice = document.getElementById("storage-warning");
+    if (!notice) {
+        notice = document.createElement("div"); notice.id = "storage-warning";
+        notice.setAttribute("role", "alert");
+        notice.style.cssText = "flex-shrink:0;padding:6px 10px;color:#e6a260;font-size:11px;white-space:normal;";
+        document.body.appendChild(notice);
+    }
+    notice.textContent = message;
+}
+function writePanelStorage(key, value) {
+    if (unreadStorageKeys[key]) { protectUnreadStorage(key); return false; }
+    try { localStorage.setItem(key, value); return true; }
+    catch (error) { showStorageWarning("Draft/preferences storage is unavailable or full. Keep this panel open and save or copy your work before closing."); return false; }
+}
+function installHostActivityIndicator() {
+    var original = csInterface.evalScript;
+    var count = 0, indicator = document.createElement("span");
+    indicator.id = "host-activity"; indicator.setAttribute("role", "status");
+    indicator.style.cssText = "flex-shrink:0;padding:3px 8px;font-size:11px;";
+    document.body.appendChild(indicator);
+    csInterface.evalScript = function (command, callback) {
+        count++; indicator.textContent = "After Effects: working…";
+        indicator.setAttribute("aria-busy", "true");
+        var completed = false;
+        function finish() { if (completed) return; completed = true; count--; if (!count) { indicator.textContent = ""; indicator.setAttribute("aria-busy", "false"); } }
+        try {
+            return original.call(csInterface, command, function (response) {
+                finish(); if (callback) callback(response);
+            });
+        } catch (error) { finish(); throw error; }
+    };
 }

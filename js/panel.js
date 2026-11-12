@@ -11,6 +11,8 @@ var scanByKey    = {};
 var scanGeneration = 0;
 var scanRequestId = 0;
 var editRevision = 0;
+var draftRecords = {};
+var restoringExpressionDrafts = false;
 
 // Active property filters (set of strings)
 var propFilters  = [];
@@ -46,6 +48,7 @@ document.addEventListener("DOMContentLoaded", function () {
             '<div style="padding:16px;color:#e07070;font-family:monospace;font-size:11px;">❌ CSInterface not found.</div>';
         return;
     }
+    installHostActivityIndicator();
     detectTheme();
     loadThemePref();
     initListeners();
@@ -115,7 +118,7 @@ function applyTheme(name) {
     Object.keys(editors).forEach(function (k) { editors[k].setOption("theme", cm); });
     var sel = document.getElementById("theme-select");
     if (sel) sel.value = name;
-    try { localStorage.setItem("ae-expr-theme", name); } catch (e) {}
+    try { writePanelStorage("ae-expr-theme", name); } catch (e) {}
 
     // Sync theme to Script Editor iframe
     try {
@@ -457,6 +460,8 @@ function doScan(discardConfirmed) {
             if (error) { setStatus("Scan error: " + error.message, true); return; }
             try {
                 if (!d.success) { setStatus("Error: " + d.error, true); return; }
+                clearTrackedExpressionDrafts();
+                restoringExpressionDrafts = true;
                 pending = {};
                 editors = {};
                 history = {};
@@ -468,6 +473,9 @@ function doScan(discardConfirmed) {
                     layer.expressions.forEach(function (expr) { scanByKey[exprKey(expr)] = expr; });
                 });
                 scanGeneration++;
+                var recovered = restoreExpressionDrafts();
+                restoringExpressionDrafts = false;
+                updateActionBar();
                 refreshCompBar();
                 renderTree(d);
                 colorizeChipsFromScan(d);
@@ -478,9 +486,10 @@ function doScan(discardConfirmed) {
                     total + " expression" + (total !== 1 ? "s" : "") +
                     " in " + d.layers.length + " layer" + (d.layers.length !== 1 ? "s" : "") +
                     " · " + scopeMsg +
-                    (propFilters.length ? " · filtered by " + propFilters.length + " prop(s)" : "")
+                    (propFilters.length ? " · filtered by " + propFilters.length + " prop(s)" : "") +
+                    (recovered ? " · " + recovered + " draft(s) recovered; review before applying" : "")
                 );
-            } catch (e) { setStatus("Parse error: " + e.message, true); }
+            } catch (e) { restoringExpressionDrafts = false; setStatus("Parse error: " + e.message, true); }
         });
     });
 }
@@ -557,6 +566,7 @@ function buildLayerNode(layer) {
                                 }
                             }
                         });
+                        persistExpressionDrafts();
                     } else setStatus("Error: " + d.error, true);
                 } catch(e) { setStatus("Invalid host response: " + e.message, true); }
             });
@@ -744,6 +754,12 @@ function buildExprNode(expr) {
 
     node.appendChild(propRow);
     node.appendChild(editorWrap);
+    if (pending[key]) {
+        node.classList.add("has-changes");
+        btnApply.classList.remove("hidden"); btnRevert.classList.remove("hidden");
+        diffBar.classList.remove("hidden");
+        preview.textContent = pending[key].expression.replace(/\n/g, " ").substring(0, 60);
+    }
     return node;
 }
 
@@ -838,6 +854,7 @@ function doToggle(expr, toggleBtn) {
                         lToggle.className = "expr-toggle layer-toggle " + (allEnabled ? "enabled" : "disabled");
                         lToggle.textContent = allEnabled ? "●" : "○";
                     }
+                    persistExpressionDrafts();
                     setStatus((d.enabled ? "Enabled" : "Disabled") + ": " + expr.propPath);
                 } catch (e) { setStatus("Invalid host response: " + e.message, true); }
             }
@@ -944,6 +961,7 @@ function undoOne(key) {
                         } else {
                             var cm = editors[key]; if (cm) cm.setValue(d.expression);
                         }
+                        persistExpressionDrafts();
                         setStatus("Undone: " + expr.propPath);
                         var node = getNode(key);
                         if (node && !history[key].length) node.querySelector(".pa-undo").classList.add("hidden");
@@ -1291,6 +1309,7 @@ function updateScanData(key, expression, enabled) {
 }
 
 function updateActionBar() {
+    if (!restoringExpressionDrafts) persistExpressionDrafts();
     var count = Object.keys(pending).length;
     var bar   = document.getElementById("action-bar");
     var badge = document.getElementById("change-badge");
@@ -1753,13 +1772,13 @@ var libSearchTerm = "";
 function loadLibSnippets() {
     try {
         var data = localStorage.getItem("ae-expr-lib");
-        if (data) libSnippets = JSON.parse(data);
-    } catch(e) {}
+        if (data) { libSnippets = JSON.parse(data); if (!Array.isArray(libSnippets)) throw new Error("Invalid snippets"); }
+    } catch(e) { protectUnreadStorage("ae-expr-lib"); }
     if (!Array.isArray(libSnippets)) libSnippets = [];
 }
 
 function saveLibSnippets() {
-    try { localStorage.setItem("ae-expr-lib", JSON.stringify(libSnippets)); } catch(e) {}
+    try { writePanelStorage("ae-expr-lib", JSON.stringify(libSnippets)); } catch(e) {}
 }
 
 function openLibModal() {
@@ -1948,3 +1967,109 @@ document.getElementById("lib-search").addEventListener("input", function() {
 document.getElementById("lib-snippet-title").addEventListener("keydown", function(e) {
     if (e.key === "Enter") saveCurrentSnippet();
 });
+
+
+// Storage failures remain visible independently of transient operation messages.
+var panelStorageWarning = "";
+var unreadStorageKeys = {};
+function protectUnreadStorage(key) {
+    unreadStorageKeys[key] = true;
+    showStorageWarning("Saved drafts/preferences could not be read and were retained. Save or copy current edits; recovery storage will not be overwritten in this session.");
+}
+function showStorageWarning(message) {
+    panelStorageWarning = message;
+    if (!document.createElement || !document.body) return;
+    var notice = document.getElementById("storage-warning");
+    if (!notice) {
+        notice = document.createElement("div"); notice.id = "storage-warning";
+        notice.setAttribute("role", "alert");
+        notice.style.cssText = "flex-shrink:0;padding:6px 10px;color:#e6a260;font-size:11px;white-space:normal;";
+        document.body.appendChild(notice);
+    }
+    notice.textContent = message;
+}
+function writePanelStorage(key, value) {
+    if (unreadStorageKeys[key]) { protectUnreadStorage(key); return false; }
+    try { localStorage.setItem(key, value); return true; }
+    catch (error) { showStorageWarning("Draft/preferences storage is unavailable or full. Keep this panel open and save or copy your work before closing."); return false; }
+}
+function installHostActivityIndicator() {
+    var original = csInterface.evalScript;
+    var count = 0, indicator = document.createElement("span");
+    indicator.id = "host-activity"; indicator.setAttribute("role", "status");
+    indicator.style.cssText = "flex-shrink:0;padding:3px 8px;font-size:11px;";
+    document.body.appendChild(indicator);
+    csInterface.evalScript = function (command, callback) {
+        count++; indicator.textContent = "After Effects: working…";
+        indicator.setAttribute("aria-busy", "true");
+        var completed = false;
+        function finish() { if (completed) return; completed = true; count--; if (!count) { indicator.textContent = ""; indicator.setAttribute("aria-busy", "false"); } }
+        try {
+            return original.call(csInterface, command, function (response) {
+                finish(); if (callback) callback(response);
+            });
+        } catch (error) { finish(); throw error; }
+    };
+}
+
+var EXPRESSION_DRAFT_PREFIX = "ae-expression-draft-v1:";
+function expressionDraftIdentity(expr) {
+    if (!scanData || typeof scanData.projectPath !== "string" || !scanData.projectPath ||
+        expr.layerId === null || expr.layerId === undefined || !expr.propRoute) return null;
+    return JSON.stringify([scanData.projectPath, scanData.compId, expr.layerId, expr.layerName, expr.propRoute]);
+}
+function removeExpressionDraft(record) {
+    try { localStorage.removeItem(record); return true; }
+    catch (error) { showStorageWarning("Could not remove the saved draft. It may appear again after reopening; keep a copy of your current work."); return false; }
+}
+function clearTrackedExpressionDrafts() {
+    Object.keys(draftRecords).forEach(function (key) { removeExpressionDraft(draftRecords[key]); });
+    draftRecords = {};
+}
+function persistExpressionDrafts() {
+    if (!scanData) return;
+    Object.keys(draftRecords).forEach(function (key) {
+        if (!pending[key] && removeExpressionDraft(draftRecords[key])) delete draftRecords[key];
+    });
+    Object.keys(pending).forEach(function (key) {
+        var expr = findExprInScanData(key), draft = pending[key];
+        if (!expr) return;
+        var identity = expressionDraftIdentity(expr);
+        if (!identity) { showStorageWarning("Save the AE project and scan again to enable safe draft recovery. These edits currently remain only in this panel."); return; }
+        var record = EXPRESSION_DRAFT_PREFIX + JSON.stringify([identity, draft.original, draft.origEnabled]);
+        var saved = writePanelStorage(record, JSON.stringify({identity:identity, original:draft.original,
+            origEnabled:draft.origEnabled, expression:draft.expression, enabled:draft.enabled, savedAt:Date.now()}));
+        if (saved) {
+            if (draftRecords[key] && draftRecords[key] !== record) removeExpressionDraft(draftRecords[key]);
+            draftRecords[key] = record;
+        }
+    });
+}
+function restoreExpressionDrafts() {
+    var count = 0, conflicts = 0, candidates = {};
+    try {
+        for (var i = 0; i < localStorage.length; i++) {
+            var storageKey = localStorage.key(i);
+            if (!storageKey || storageKey.indexOf(EXPRESSION_DRAFT_PREFIX) !== 0) continue;
+            var draft;
+            try { draft = JSON.parse(localStorage.getItem(storageKey)); }
+            catch (error) { showStorageWarning("A saved draft could not be read. It was retained in storage; current edits were not replaced."); continue; }
+            if (!draft || typeof draft.expression !== "string" || typeof draft.original !== "string" ||
+                typeof draft.enabled !== "boolean" || typeof draft.origEnabled !== "boolean") continue;
+            Object.keys(scanByKey).forEach(function (key) {
+                var expr = scanByKey[key];
+                if (draft.identity !== expressionDraftIdentity(expr)) return;
+                if (draft.original !== expr.expression || draft.origEnabled !== expr.enabled) { conflicts++; return; }
+                if (!candidates[key] || draft.savedAt > candidates[key].draft.savedAt) candidates[key] = {draft:draft, record:storageKey};
+            });
+        }
+        Object.keys(candidates).forEach(function (key) {
+            if (pending[key]) return;
+            var item = candidates[key], draft = item.draft;
+            pending[key] = {original:draft.original, origEnabled:draft.origEnabled, expression:draft.expression, enabled:draft.enabled};
+            draftRecords[key] = item.record; count++;
+        });
+    } catch (error) { showStorageWarning("Saved drafts could not be read. Keep this panel open and save or copy edits before closing."); }
+    if (conflicts) showStorageWarning("Saved drafts exist for properties changed in AE. Conflicting drafts were retained and were not applied or substituted.");
+    return count;
+}
