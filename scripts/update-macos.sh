@@ -71,17 +71,115 @@ studio_no_links() {
   done
 }
 
+studio_discover_target() {
+  local user_root="$1" common_root="$2" root name path found=''
+  for root in "$user_root" "$common_root"; do
+    for name in 'AE Expression Editor' 'AE-ExpressionEditor'; do
+      path="$root/$name"
+      if [ -e "$path" ] || [ -L "$path" ]; then
+        studio_no_links "$path" || return 1
+        studio_version "$path" >/dev/null || { echo "Cannot identify existing installation: $path" >&2; return 1; }
+        if [ -n "$found" ]; then
+          echo "Multiple Expression Studio installations found: $found and $path. Remove the unwanted duplicate yourself before updating." >&2
+          return 1
+        fi
+        found="$path"
+      fi
+    done
+  done
+  if [ -n "$found" ]; then printf '%s\n' "$found"; else printf '%s/AE-ExpressionEditor\n' "$user_root"; fi
+}
+
+studio_writable_target() {
+  local target="$1" parent
+  parent=$(/usr/bin/dirname "$target")
+  while [ ! -e "$parent" ]; do parent=$(/usr/bin/dirname "$parent"); done
+  if [ ! -w "$parent" ] || { [ -e "$target" ] && [ ! -w "$target" ]; }; then
+    echo "Installation is protected: $target. Ask your administrator to update this existing installation or grant write access to it and its parent folder, then rerun. This helper does not run sudo or create a duplicate installation." >&2
+    return 1
+  fi
+}
+
+# Small wrapper allows the filesystem transaction to be fault-injected in tests.
+studio_move() { /bin/mv "$1" "$2"; }
+
+studio_payload() {
+  local payload="$1" expected="$2"
+  [ "$(studio_version "$payload")" = "$expected" ] && [ -f "$payload/index.html" ] &&
+    [ -s "$payload/META-INF/signatures.xml" ] || { echo 'Payload identity, entry point, or Adobe signature is missing.' >&2; return 1; }
+  [ -z "$(/usr/bin/find "$payload" -type l -print)" ] || { echo 'Payload links are forbidden.' >&2; return 1; }
+}
+
+studio_replace_installation() {
+  local payload="$1" target="$2" installed="$3" version="$4" backups="$5"
+  local parent candidate backup='' original=false failed=false checked target_device backup_device
+  for checked in "$payload" "$target" "$backups"; do
+    case "$checked/" in *'/../'*|*'/./'*|*'//'*) echo 'Update paths must be absolute and normalized.' >&2; return 1;; esac
+  done
+  case "$target" in /*/'AE Expression Editor'|/*/AE-ExpressionEditor) ;; *) echo 'Unexpected installation path.' >&2; return 1;; esac
+  case "$payload" in /*) ;; *) return 1;; esac
+  case "$backups" in /*) ;; *) return 1;; esac
+  case "$payload/" in "$target/"*|"$backups/"*) echo 'Overlapping update paths.' >&2; return 1;; esac
+  case "$target/" in "$payload/"*|"$backups/"*) echo 'Overlapping update paths.' >&2; return 1;; esac
+  case "$backups/" in "$payload/"*|"$target/"*) echo 'Overlapping update paths.' >&2; return 1;; esac
+  studio_no_links "$payload" && studio_no_links "$target" && studio_no_links "$backups" || return 1
+  studio_writable_target "$target" || return 1
+  studio_payload "$payload" "$version" || return 1
+  if [ -e "$target" ]; then
+    original=true
+    [ "$(studio_version "$target")" = "$installed" ] || { echo 'Installed version changed; check again.' >&2; return 1; }
+  elif [ "$installed" != 0.0.0 ]; then echo 'Previous installation disappeared; check again.' >&2; return 1
+  fi
+  parent=$(/usr/bin/dirname "$target")
+  /bin/mkdir -p "$parent" || return 1
+  candidate=$(/usr/bin/mktemp -d "$parent/.ExpressionStudio-stage.XXXXXXXX") || return 1
+  /bin/cp -R "$payload" "$candidate/payload" || return 1
+  studio_payload "$candidate/payload" "$version" || return 1
+  if $original; then
+    /bin/mkdir -p "$backups" || return 1
+    # mv can copy-and-delete across volumes; disallow that before touching original files.
+    target_device=$(/usr/bin/stat -f '%d' "$target") || return 1
+    backup_device=$(/usr/bin/stat -f '%d' "$backups") || return 1
+    [ "$target_device" = "$backup_device" ] || {
+      echo 'Backup and installation are on different volumes. No installed files were changed.' >&2; return 1;
+    }
+    backup=$(/usr/bin/mktemp -d "$backups/$installed.XXXXXXXX") || return 1
+    studio_move "$target" "$backup/AE-ExpressionEditor" || return 1
+  fi
+  if ! studio_move "$candidate/payload" "$target"; then failed=true
+  elif ! studio_payload "$target" "$version"; then failed=true
+  fi
+  if $failed; then
+    # Preserve the failed candidate for diagnosis; never recursively delete an installation.
+    if [ -e "$target" ] || [ -L "$target" ]; then
+      studio_no_links "$target" || { echo "Rollback blocked by a linked destination. Previous files: $backup" >&2; return 1; }
+      studio_move "$target" "$candidate/failed-installation" || { echo "Could not quarantine failed payload. Previous files: $backup" >&2; return 1; }
+    fi
+    if $original; then
+      studio_move "$backup/AE-ExpressionEditor" "$target" || { echo "Rollback failed. Previous files retained at: $backup" >&2; return 1; }
+      [ "$(studio_version "$target")" = "$installed" ] || { echo 'Rollback verification failed.' >&2; return 1; }
+      echo 'Installation failed; previous extension restored.' >&2
+    else echo 'Installation failed; failed payload retained for diagnosis.' >&2
+    fi
+    return 1
+  fi
+  [ -z "$backup" ] || echo "Previous files retained at: $backup"
+}
+
 studio_main() {
   [ "$(/usr/bin/uname -s)" = Darwin ] || { echo 'This updater requires macOS.' >&2; return 1; }
   local install=false
   case "${1:---check}" in --check) ;; --install) install=true;; *) echo 'Usage: update-macos.sh [--check|--install]' >&2; return 1;; esac
   [ "$#" -le 1 ] || return 1
-  local target="$HOME/Library/Application Support/Adobe/CEP/extensions/AE-ExpressionEditor"
+  local target
+  target=$(studio_discover_target "$HOME/Library/Application Support/Adobe/CEP/extensions" "/Library/Application Support/Adobe/CEP/extensions")
   local scriptdir installed='0.0.0' work status version zipname base answer sha size actual checksum_count backup='' stage candidate parent
   scriptdir=$(cd "$(/usr/bin/dirname "${BASH_SOURCE[0]}")" && pwd)
   studio_no_links "$target"
   if [ -e "$target" ]; then installed=$(studio_version "$target"); fi
   work=$(/usr/bin/mktemp -d "${TMPDIR:-/tmp}/ExpressionStudio-update.XXXXXXXX")
+  # macOS TMPDIR often starts with the system /var symlink; use its physical path.
+  work=$(cd "$work" && pwd -P)
   status=$(/usr/bin/curl --proto '=https' --tlsv1.2 --silent --show-error -L -w '%{http_code}' -o "$work/release.json" -H 'Accept: application/vnd.github+json' 'https://api.github.com/repos/rodrigoblergh/expression-studio/releases/latest')
   if [ "$status" = 404 ]; then echo 'No stable release is published. Nothing was installed.'; return; fi
   [ "$status" = 200 ] || { echo "GitHub update check failed (HTTP $status)." >&2; return 1; }
@@ -91,6 +189,7 @@ studio_main() {
   echo "Update available: $installed -> $version. $repo/releases/tag/v$version"
   if ! $install; then echo 'Check only. Run with --install to review and approve installation.'; return; fi
   if /usr/bin/pgrep -f '/Adobe After Effects[^/]*/.*Contents/MacOS/' >/dev/null; then echo 'Save your project and close After Effects first. No application was closed.' >&2; return 1; fi
+  studio_writable_target "$target"
   [ -t 0 ] || { echo 'Installation requires interactive terminal approval.' >&2; return 1; }
   printf 'Install Expression Studio %s with a backup of existing files? Type INSTALL: ' "$version"
   IFS= read -r answer
@@ -116,29 +215,9 @@ studio_main() {
   [ -z "$(/usr/bin/find "$stage" -type l -print)" ] || { echo 'Extracted links are forbidden.' >&2; return 1; }
   [ "$(studio_version "$stage/AE-ExpressionEditor")" = "$version" ] && [ -f "$stage/AE-ExpressionEditor/index.html" ] || return 1
   if /usr/bin/pgrep -f '/Adobe After Effects[^/]*/.*Contents/MacOS/' >/dev/null; then echo 'After Effects started during download. Close it and retry.' >&2; return 1; fi
-  studio_no_links "$target"
-  parent=$(/usr/bin/dirname "$target"); /bin/mkdir -p "$parent"
-  candidate=$(/usr/bin/mktemp -d "$parent/.ExpressionStudio-stage.XXXXXXXX")
-  /bin/cp -R "$stage/AE-ExpressionEditor" "$candidate/payload"
-  [ "$(studio_version "$candidate/payload")" = "$version" ] || return 1
-  if [ -e "$target" ]; then
-    [ "$(studio_version "$target")" = "$installed" ] || { echo 'Installed version changed; check again.' >&2; return 1; }
-    local backups="$HOME/Library/Application Support/ExpressionStudio/backups"
-    studio_no_links "$backups"; /bin/mkdir -p "$backups"
-    backup=$(/usr/bin/mktemp -d "$backups/$installed.XXXXXXXX")
-    /bin/mv "$target" "$backup/AE-ExpressionEditor"
-  fi
-  if ! /bin/mv "$candidate/payload" "$target"; then
-    if [ -n "$backup" ] && [ ! -e "$target" ]; then
-      /bin/mv "$backup/AE-ExpressionEditor" "$target"
-      echo 'Installation failed; previous extension restored.' >&2
-    else
-      echo "Installation failed. Previous files, if any, are at: $backup" >&2
-    fi
-    return 1
-  fi
+  [ "$(studio_discover_target "$HOME/Library/Application Support/Adobe/CEP/extensions" "/Library/Application Support/Adobe/CEP/extensions")" = "$target" ] || { echo 'Installation locations changed; check again.' >&2; return 1; }
+  studio_replace_installation "$stage/AE-ExpressionEditor" "$target" "$installed" "$version" "$HOME/Library/Application Support/ExpressionStudio/backups"
   echo "Installed Expression Studio $version. Reopen After Effects. CEP preferences were preserved."
-  [ -z "$backup" ] || echo "Previous files retained at: $backup"
   echo "Downloaded files retained at: $work"
 }
 if [ "${BASH_SOURCE[0]}" = "$0" ]; then studio_main "$@"; fi

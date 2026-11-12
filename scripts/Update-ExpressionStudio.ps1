@@ -1,9 +1,9 @@
-# Windows per-user CEP update helper. Check-only unless -Install is explicitly supplied.
+# Windows CEP update helper. Existing Adobe or per-user installations are preserved. Check-only unless -Install is explicitly supplied.
 [CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = 'High')]
 param(
     [switch]$Install,
     [switch]$CheckOnly,
-    [string]$InstallPath = (Join-Path $env:APPDATA 'Adobe\CEP\extensions\AE-ExpressionEditor')
+    [string]$InstallPath
 )
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'Verify-Update.ps1')
@@ -19,10 +19,8 @@ function Get-ExpressionStudioManifestVersion([string]$Directory) {
     if ($version -notmatch '^\d+\.\d+\.\d+$') { throw 'Invalid extension version.' }
     return [version]$version
 }
-function Assert-ExpressionStudioPath([string]$Path) {
-    $full = [IO.Path]::GetFullPath($Path)
-    if ([IO.Path]::GetFileName($full) -ne 'AE-ExpressionEditor') { throw 'Installation folder must be named AE-ExpressionEditor.' }
-    $item = $full
+function Assert-ExpressionStudioNoLinks([string]$Path) {
+    $item = [IO.Path]::GetFullPath($Path)
     while ($item) {
         if (Test-Path -LiteralPath $item) {
             if ((Get-Item -LiteralPath $item -Force).Attributes -band [IO.FileAttributes]::ReparsePoint) { throw 'Installation paths containing links or junctions are not supported.' }
@@ -30,7 +28,57 @@ function Assert-ExpressionStudioPath([string]$Path) {
         $parent = [IO.Path]::GetDirectoryName($item)
         if ($parent -eq $item) { break }; $item = $parent
     }
+}
+function Assert-ExpressionStudioPath([string]$Path) {
+    $full = [IO.Path]::GetFullPath($Path)
+    $name = [IO.Path]::GetFileName($full)
+    if ($name -ne 'AE-ExpressionEditor' -and $name -ne 'AE Expression Editor') { throw 'Installation folder must be AE-ExpressionEditor or the verified Adobe folder AE Expression Editor.' }
+    Assert-ExpressionStudioNoLinks $full
+    if (Test-Path -LiteralPath $full) { $null = Get-ExpressionStudioManifestVersion $full }
+    elseif ($name -eq 'AE Expression Editor') { throw 'The Adobe display-name folder must already contain the verified Expression Studio extension.' }
     return $full
+}
+function Get-ExpressionStudioCommonRoots {
+    @($env:CommonProgramFiles, [Environment]::GetEnvironmentVariable('CommonProgramFiles(x86)'), $env:CommonProgramW6432) | Where-Object { $_ } | ForEach-Object { Join-Path $_ 'Adobe\CEP\extensions' } | Select-Object -Unique
+}
+function Resolve-ExpressionStudioInstallPath {
+    param([string]$RequestedPath,[string]$UserRoot=(Join-Path $env:APPDATA 'Adobe\CEP\extensions'),[string[]]$CommonRoots=@(Get-ExpressionStudioCommonRoots))
+    $found = @{}
+    foreach ($base in @($UserRoot) + $CommonRoots) {
+        if (!$base) { continue }
+        foreach ($name in @('AE-ExpressionEditor','AE Expression Editor')) {
+            $candidate = [IO.Path]::GetFullPath((Join-Path $base $name))
+            if (Test-Path -LiteralPath $candidate) { $verified = Assert-ExpressionStudioPath $candidate; $found[$verified] = $verified }
+        }
+    }
+    $requested = $null
+    if ($RequestedPath) {
+        $requested = Assert-ExpressionStudioPath $RequestedPath
+        if (Test-Path -LiteralPath $requested) { $found[$requested] = $requested }
+    }
+    if ($found.Count -gt 1) { throw ('Multiple Expression Studio installations found. Resolve duplicates before updating: ' + (($found.Values | Sort-Object) -join '; ')) }
+    if ($found.Count -eq 1) {
+        $existing = @($found.Values)[0]
+        if ($requested -and $requested -ne $existing) { throw "Expression Studio already exists at $existing. Use that installation path to avoid a duplicate." }
+        return $existing
+    }
+    if ($requested) { return $requested }
+    return Assert-ExpressionStudioPath (Join-Path $UserRoot 'AE-ExpressionEditor')
+}
+function Test-ExpressionStudioAdministrator {
+    $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
+    try { return ([Security.Principal.WindowsPrincipal]::new($identity)).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator) }
+    finally { $identity.Dispose() }
+}
+function Assert-ExpressionStudioElevation {
+    param([string]$Path,[string[]]$CommonRoots=@(Get-ExpressionStudioCommonRoots),[bool]$IsAdministrator=(Test-ExpressionStudioAdministrator))
+    $full = [IO.Path]::GetFullPath($Path)
+    foreach ($base in $CommonRoots) {
+        $prefix = [IO.Path]::GetFullPath($base).TrimEnd([IO.Path]::DirectorySeparatorChar) + [IO.Path]::DirectorySeparatorChar
+        if ($full.StartsWith($prefix,[StringComparison]::OrdinalIgnoreCase) -and !$IsAdministrator) {
+            throw "Expression Studio is installed for all users at $full. Save your project and close After Effects, then open PowerShell as administrator and rerun this helper with -Install. No files were downloaded or changed; the updater will preserve this installation path."
+        }
+    }
 }
 function Expand-ExpressionStudioPackage([string]$ArchivePath, [string]$StagePath, [string]$ExpectedVersion) {
     Add-Type -AssemblyName System.IO.Compression.FileSystem
@@ -77,9 +125,64 @@ function Assert-ExpressionStudioChecksum([string]$ArchivePath, [string]$Checksum
     $actual = (Get-FileHash -LiteralPath $ArchivePath -Algorithm SHA256).Hash
     if ($actual -ne $matchesFound[0].Substring(0,64)) { throw 'Package checksum verification failed.' }
 }
+function Install-ExpressionStudioPayload {
+    [CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = 'High')]
+    param(
+        [Parameter(Mandatory)][string]$StagePath,
+        [Parameter(Mandatory)][string]$ExpectedVersion,
+        [Parameter(Mandatory)][version]$InstalledVersion,
+        [Parameter(Mandatory)][string]$TargetPath,
+        [Parameter(Mandatory)][string]$BackupRoot
+    )
+    $ErrorActionPreference = 'Stop'
+    $target = Assert-ExpressionStudioPath $TargetPath
+    $stage = [IO.Path]::GetFullPath($StagePath)
+    $backups = [IO.Path]::GetFullPath($BackupRoot)
+    $separator = [IO.Path]::DirectorySeparatorChar
+    foreach ($pair in @(@($stage,$target),@($backups,$target),@($stage,$backups))) {
+        if ($pair[0] -eq $pair[1] -or $pair[0].StartsWith($pair[1].TrimEnd($separator)+$separator,[StringComparison]::OrdinalIgnoreCase) -or $pair[1].StartsWith($pair[0].TrimEnd($separator)+$separator,[StringComparison]::OrdinalIgnoreCase)) { throw 'Stage, installation and backup paths must be separate directories.' }
+    }
+    foreach ($path in @($stage,$backups)) {
+        $item = $path
+        while ($item) {
+            if ((Test-Path -LiteralPath $item) -and ((Get-Item -LiteralPath $item -Force).Attributes -band [IO.FileAttributes]::ReparsePoint)) { throw 'Staging and backup paths cannot contain links.' }
+            $parent = [IO.Path]::GetDirectoryName($item); if ($parent -eq $item) { break }; $item = $parent
+        }
+    }
+    if (!(Test-Path -LiteralPath $stage -PathType Container)) { throw 'Staged payload is missing.' }
+    if (@(Get-ChildItem -LiteralPath $stage -Recurse -Force | Where-Object { $_.Attributes -band [IO.FileAttributes]::ReparsePoint }).Count) { throw 'Staged payload cannot contain links.' }
+    if ((Get-ExpressionStudioManifestVersion $stage).ToString() -cne $ExpectedVersion -or !(Test-Path -LiteralPath (Join-Path $stage 'index.html') -PathType Leaf)) { throw 'Staged payload identity or entry point is invalid.' }
+    $hadOriginal = Test-Path -LiteralPath $target
+    if ($hadOriginal) {
+        if ((Get-ExpressionStudioManifestVersion $target) -ne $InstalledVersion) { throw 'Installed version changed during the update; check again.' }
+    } elseif ($InstalledVersion -ne [version]'0.0.0') { throw 'The previous installation disappeared during the update.' }
+    if ([version]$ExpectedVersion -le $InstalledVersion) { throw 'Update must be newer than the installed version.' }
+    if (!$PSCmdlet.ShouldProcess($target,"Install verified Expression Studio $ExpectedVersion with rollback backup")) { return [pscustomobject]@{Installed=$false;BackupPath=$null} }
+    $backup = $null
+    if ($hadOriginal) {
+        [IO.Directory]::CreateDirectory($backups) | Out-Null
+        $backup = Join-Path $backups ("$InstalledVersion-" + [guid]::NewGuid().ToString('N'))
+        # Atomic directory move: on a different volume fail without partially moving the original.
+        [IO.Directory]::Move($target,$backup)
+    }
+    try {
+        [IO.Directory]::CreateDirectory([IO.Path]::GetDirectoryName($target)) | Out-Null
+        Move-Item -LiteralPath $stage -Destination $target -ErrorAction Stop
+        if ((Get-ExpressionStudioManifestVersion $target).ToString() -cne $ExpectedVersion) { throw 'Installed version verification failed.' }
+        return [pscustomobject]@{Installed=$true;BackupPath=$backup}
+    } catch {
+        $installError = $_
+        # target was resolved and checked above; only this owned payload can be removed.
+        Assert-ExpressionStudioNoLinks $target
+        if (Test-Path -LiteralPath $target) { Remove-Item -LiteralPath $target -Recurse -Force -ErrorAction Stop }
+        if ($backup) { [IO.Directory]::Move($backup,$target) }
+        throw $installError
+    }
+}
 if ($MyInvocation.InvocationName -eq '.') { return }
 if ($Install -and $CheckOnly) { throw 'Choose either -Install or -CheckOnly.' }
-$InstallPath = Assert-ExpressionStudioPath $InstallPath
+$InstallPath = Resolve-ExpressionStudioInstallPath -RequestedPath $InstallPath
+if ($Install) { Assert-ExpressionStudioElevation -Path $InstallPath }
 $installed = [version]'0.0.0'
 if (Test-Path -LiteralPath $InstallPath) { $installed = Get-ExpressionStudioManifestVersion $InstallPath }
 $headers = @{ 'User-Agent' = 'Expression-Studio-Updater'; 'Accept' = 'application/vnd.github+json' }
@@ -120,26 +223,8 @@ if ((Get-Item -LiteralPath $zipPath).Length -ne $verified.size -or (Get-FileHash
 Expand-ExpressionStudioPackage $zipPath $stage $version
 # Recheck immediately before replacing files; never stop After Effects automatically.
 if (Get-Process -Name AfterFX -ErrorAction SilentlyContinue) { throw 'After Effects started during the download. Close it and retry.' }
-$null = Assert-ExpressionStudioPath $InstallPath
-$backup = $null
-if (Test-Path -LiteralPath $InstallPath) {
-    $current = Get-ExpressionStudioManifestVersion $InstallPath
-    if ($current -ne $installed) { throw 'Installed version changed during the update; check again.' }
-    $backupRoot = Join-Path $env:LOCALAPPDATA 'ExpressionStudio\backups'
-    [IO.Directory]::CreateDirectory($backupRoot) | Out-Null
-    $backup = Join-Path $backupRoot ("$installed-" + [guid]::NewGuid().ToString('N'))
-    Move-Item -LiteralPath $InstallPath -Destination $backup
-}
-try {
-    [IO.Directory]::CreateDirectory([IO.Path]::GetDirectoryName($InstallPath)) | Out-Null
-    Move-Item -LiteralPath $stage -Destination $InstallPath
-    if ((Get-ExpressionStudioManifestVersion $InstallPath).ToString() -ne $version) { throw 'Installed version verification failed.' }
-} catch {
-    # Delete only the exact owned installation path, already validated above.
-    if (Test-Path -LiteralPath $InstallPath) { Remove-Item -LiteralPath $InstallPath -Recurse -Force }
-    if ($backup) { Move-Item -LiteralPath $backup -Destination $InstallPath }
-    throw
-}
+$installResult = Install-ExpressionStudioPayload -StagePath $stage -ExpectedVersion $version -InstalledVersion $installed -TargetPath $InstallPath -BackupRoot (Join-Path $env:LOCALAPPDATA 'ExpressionStudio\backups') -Confirm:$false
+$backup = $installResult.BackupPath
 Write-Output "Installed Expression Studio $version. Reopen After Effects. Preferences were not changed."
 if ($backup) { Write-Output "Previous files retained at: $backup" }
 Write-Output "Downloaded files retained at: $work"

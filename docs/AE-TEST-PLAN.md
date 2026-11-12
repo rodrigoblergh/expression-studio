@@ -1,6 +1,6 @@
 # Live After Effects acceptance checks
 
-Status: pending. Node tests emulate selected APIs; they do not launch After Effects or validate CEP rendering. Run on Windows and Apple Silicon macOS with each supported AE major version before claiming support.
+Status: Windows AE 26.0x67 native host acceptance passed 13/13 checks on 2026-11-12; see [sanitized report](ae-smoke-windows-2026-11-12.json). The signed 1.0.2 panel opened and reported the AE host version. Full embedded CEP interaction and live Apple Silicon macOS checks remain pending. Node mocks, browser tests, CI and native host scripts establish different evidence; do not treat one as a replacement for the others.
 
 Use a disposable project with duplicate layer names, duplicate effect names, separated position dimensions, 2D/3D layers, locked layers, disabled expressions and expression errors.
 

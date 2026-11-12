@@ -1,0 +1,67 @@
+{
+  "schemaVersion": 1,
+  "status": "passed",
+  "aeVersion": "26.0x67",
+  "os": "Windows/64 10.0  ",
+  "startedAt": "Thursday, 12 Nov 2026 22:42:07 GMT",
+  "sampleProject": "work/Expression-Studio-Acceptance.aep",
+  "checks": [
+    {
+      "name": "Create disposable composition and expression layers",
+      "passed": true
+    },
+    {
+      "name": "Scan returns current composition, two layers and stable property identities",
+      "passed": true
+    },
+    {
+      "name": "Apply one expression and report actual stored state",
+      "passed": true
+    },
+    {
+      "name": "Reject stale expression target without changing the property",
+      "passed": true
+    },
+    {
+      "name": "Toggle expression off and back on with fresh identities",
+      "passed": true
+    },
+    {
+      "name": "Apply batch updates to two distinct properties",
+      "passed": true
+    },
+    {
+      "name": "Apply to selected layer resolves the matching property",
+      "passed": true
+    },
+    {
+      "name": "Selected-property application uses the selected opacity only",
+      "passed": true
+    },
+    {
+      "name": "Wrong composition target is rejected without writes",
+      "passed": true
+    },
+    {
+      "name": "Chunked scan round trip preserves a long expression",
+      "passed": true
+    },
+    {
+      "name": "Script execution returns result and structured error",
+      "passed": true
+    },
+    {
+      "name": "Unicode content and quoted Unicode file path save/read round trip",
+      "passed": true
+    },
+    {
+      "name": "Save acceptance project and expose its path in scan results",
+      "passed": true
+    }
+  ],
+  "passed": 13,
+  "failed": 0,
+  "finishedAt": "Thursday, 12 Nov 2026 22:42:07 GMT",
+  "note": "Host acceptance only. Panel layout, keyboard interaction and CEP bridge UI require separate live evaluation.",
+  "redaction": "Absolute user workspace path replaced with repository-relative sample path."
+}
