@@ -1,0 +1,12 @@
+{
+  "name": "expression-studio",
+  "version": "1.0.1",
+  "private": true,
+  "description": "After Effects expression and script editor CEP extension",
+  "scripts": {
+    "test": "node --test",
+    "check": "node scripts/check.cjs",
+    "package": "pwsh -NoProfile -File scripts/package.ps1"
+  },
+  "engines": { "node": ">=22" }
+}

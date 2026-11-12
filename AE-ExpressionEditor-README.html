@@ -1,0 +1,793 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AE Expression Editor — README</title>
+<style>
+  /* ── Reset & Base ── */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --brand:   #4a9cd4;
+    --brandl:  #6db8e8;
+    --dark:    #1a1a1a;
+    --mid:     #444;
+    --muted:   #888;
+    --ok:      #3a9464;
+    --warn:    #c8924a;
+    --err:     #d96060;
+    --bg:      #f8f9fb;
+    --bg1:     #ffffff;
+    --bg2:     #f0f4f8;
+    --bd:      #dde3ea;
+    --code-bg: #1e1e2e;
+    --code-fg: #cdd6f4;
+    --radius:  6px;
+    --font:    'Segoe UI', system-ui, -apple-system, sans-serif;
+    --mono:    'Fira Code', 'Cascadia Code', Consolas, monospace;
+  }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    font-family: var(--font);
+    font-size: 14px;
+    line-height: 1.7;
+    color: var(--dark);
+    background: var(--bg);
+  }
+
+  /* ── Layout ── */
+  .page-wrap {
+    display: flex;
+    min-height: 100vh;
+  }
+
+  /* ── Sidebar TOC ── */
+  .sidebar {
+    width: 240px;
+    flex-shrink: 0;
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    overflow-y: auto;
+    background: #1a2035;
+    padding: 24px 0;
+    border-right: 1px solid #2a3050;
+  }
+
+  .sidebar-title {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: #5a7aa8;
+    padding: 0 20px 12px;
+    border-bottom: 1px solid #2a3050;
+    margin-bottom: 12px;
+  }
+
+  .toc-list { list-style: none; }
+  .toc-list li a {
+    display: block;
+    padding: 5px 20px;
+    font-size: 12px;
+    color: #8aa8cc;
+    text-decoration: none;
+    transition: color .15s, background .15s;
+    border-left: 2px solid transparent;
+  }
+  .toc-list li a:hover { color: #fff; background: rgba(255,255,255,.05); }
+  .toc-list li.toc-h2 a { padding-left: 32px; font-size: 11px; color: #6a8aaa; }
+  .toc-list li.toc-h2 a:hover { color: #cce; }
+  .toc-list li.active > a { color: var(--brandl); border-left-color: var(--brand); }
+
+  /* ── Main Content ── */
+  .content {
+    flex: 1;
+    min-width: 0;
+    padding: 0 48px 80px;
+    max-width: 900px;
+  }
+
+  /* ── Cover ── */
+  .cover {
+    padding: 64px 0 40px;
+    border-bottom: 2px solid var(--bd);
+    margin-bottom: 48px;
+  }
+  .cover-badge {
+    display: inline-block;
+    background: var(--brand);
+    color: #fff;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    padding: 3px 10px;
+    border-radius: 20px;
+    margin-bottom: 16px;
+  }
+  .cover h1 {
+    font-size: 40px;
+    font-weight: 800;
+    color: var(--dark);
+    line-height: 1.15;
+    margin-bottom: 8px;
+  }
+  .cover h1 span { color: var(--brand); }
+  .cover .subtitle {
+    font-size: 16px;
+    color: var(--muted);
+    margin-bottom: 24px;
+  }
+  .cover-meta {
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+  }
+  .cover-tag {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--mid);
+    background: var(--bg2);
+    border: 1px solid var(--bd);
+    border-radius: 20px;
+    padding: 4px 12px;
+  }
+
+  /* ── Section headings ── */
+  h1.section {
+    font-size: 26px;
+    font-weight: 700;
+    color: var(--dark);
+    margin: 48px 0 16px;
+    padding-bottom: 10px;
+    border-bottom: 2px solid var(--brand);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  h1.section .section-icon {
+    width: 32px; height: 32px;
+    background: var(--brand);
+    color: #fff;
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 15px; flex-shrink: 0;
+  }
+
+  h2.sub {
+    font-size: 17px;
+    font-weight: 700;
+    color: var(--brand);
+    margin: 32px 0 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  h2.sub::before {
+    content: '';
+    display: inline-block;
+    width: 4px; height: 16px;
+    background: var(--brand);
+    border-radius: 2px;
+    flex-shrink: 0;
+  }
+
+  h3.sub3 {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--mid);
+    margin: 24px 0 8px;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    font-size: 12px;
+  }
+
+  p { margin-bottom: 12px; }
+
+  /* ── Feature tables ── */
+  .feat-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 16px 0 24px;
+    font-size: 13px;
+    border-radius: var(--radius);
+    overflow: hidden;
+    border: 1px solid var(--bd);
+  }
+  .feat-table thead tr {
+    background: #1a2035;
+    color: #fff;
+  }
+  .feat-table thead th {
+    padding: 10px 14px;
+    text-align: left;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+  }
+  .feat-table tbody tr:nth-child(even) { background: var(--bg2); }
+  .feat-table tbody tr:nth-child(odd)  { background: var(--bg1); }
+  .feat-table tbody tr:hover { background: #e8f0fb; }
+  .feat-table td {
+    padding: 9px 14px;
+    border-bottom: 1px solid var(--bd);
+    vertical-align: top;
+  }
+  .feat-table td:first-child {
+    width: 220px;
+    font-family: var(--mono);
+    font-size: 12px;
+    color: #c0392b;
+    background: rgba(192,57,43,.04);
+    white-space: nowrap;
+  }
+
+  /* ── Inline code ── */
+  code {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: #c0392b;
+    background: rgba(192,57,43,.07);
+    padding: 1px 5px;
+    border-radius: 3px;
+  }
+
+  /* ── Code block ── */
+  pre {
+    background: var(--code-bg);
+    color: var(--code-fg);
+    font-family: var(--mono);
+    font-size: 12.5px;
+    line-height: 1.6;
+    padding: 16px 20px;
+    border-radius: var(--radius);
+    overflow-x: auto;
+    margin: 12px 0 20px;
+    border: 1px solid #2a2a3e;
+  }
+  pre code { background: none; color: inherit; padding: 0; font-size: inherit; }
+
+  /* ── Callout boxes ── */
+  .callout {
+    display: flex;
+    gap: 12px;
+    padding: 14px 16px;
+    border-radius: var(--radius);
+    margin: 16px 0;
+    font-size: 13px;
+    line-height: 1.55;
+  }
+  .callout-icon { font-size: 18px; flex-shrink: 0; margin-top: 1px; }
+  .callout-body { flex: 1; }
+  .callout-body strong { display: block; margin-bottom: 3px; }
+  .callout.tip   { background: #eef5fb; border-left: 3px solid var(--brand); }
+  .callout.ok    { background: #eef7ee; border-left: 3px solid var(--ok); }
+  .callout.warn  { background: #fbf4ee; border-left: 3px solid var(--warn); }
+  .callout.tip   .callout-icon { color: var(--brand); }
+  .callout.ok    .callout-icon { color: var(--ok); }
+  .callout.warn  .callout-icon { color: var(--warn); }
+
+  /* ── Bullet lists ── */
+  ul.doc-list {
+    margin: 8px 0 16px 0;
+    padding-left: 0;
+    list-style: none;
+  }
+  ul.doc-list li {
+    padding: 4px 0 4px 22px;
+    position: relative;
+    font-size: 13.5px;
+  }
+  ul.doc-list li::before {
+    content: '▸';
+    position: absolute;
+    left: 0;
+    color: var(--brand);
+    font-size: 11px;
+    top: 6px;
+  }
+
+  /* ── Keyboard shortcuts ── */
+  kbd {
+    display: inline-block;
+    padding: 2px 7px;
+    font-family: var(--mono);
+    font-size: 11px;
+    background: var(--bg2);
+    border: 1px solid var(--bd);
+    border-bottom-width: 2px;
+    border-radius: 4px;
+    color: var(--mid);
+  }
+
+  /* ── Step list ── */
+  .steps { list-style: none; counter-reset: steps; margin: 12px 0 20px; padding: 0; }
+  .steps li {
+    counter-increment: steps;
+    display: flex;
+    gap: 14px;
+    align-items: flex-start;
+    margin-bottom: 12px;
+    font-size: 13.5px;
+  }
+  .steps li::before {
+    content: counter(steps);
+    flex-shrink: 0;
+    width: 24px; height: 24px;
+    background: var(--brand);
+    color: #fff;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px;
+    font-weight: 700;
+    margin-top: 2px;
+  }
+
+  /* ── Divider ── */
+  hr { border: none; border-top: 1px solid var(--bd); margin: 40px 0; }
+
+  /* ── File tree ── */
+  .file-tree {
+    background: var(--code-bg);
+    border-radius: var(--radius);
+    padding: 16px 20px;
+    font-family: var(--mono);
+    font-size: 12.5px;
+    line-height: 1.8;
+    border: 1px solid #2a2a3e;
+    margin: 12px 0 20px;
+  }
+  .ft-dir  { color: #89dceb; }
+  .ft-file { color: #cdd6f4; }
+  .ft-desc { color: #6c7086; font-style: italic; }
+  .ft-root { color: #f38ba8; font-weight: 700; }
+
+  /* ── Example blocks ── */
+  .example-pair {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin: 12px 0 20px;
+  }
+  .example-label {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .08em;
+    padding: 4px 0 6px;
+  }
+  .example-before .example-label { color: var(--warn); }
+  .example-after  .example-label { color: var(--ok); }
+  .example-before pre { border-left: 3px solid var(--warn); }
+  .example-after  pre { border-left: 3px solid var(--ok); }
+
+  /* ── Footer ── */
+  .footer {
+    margin-top: 60px;
+    padding: 24px 0;
+    border-top: 1px solid var(--bd);
+    text-align: center;
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  /* ── Print ── */
+  @media print {
+    .sidebar { display: none; }
+    .content { padding: 0 0 40px; max-width: 100%; }
+    .page-wrap { display: block; }
+  }
+
+  /* ── Responsive ── */
+  @media (max-width: 768px) {
+    .sidebar { display: none; }
+    .content { padding: 0 20px 60px; }
+    .example-pair { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<div class="page-wrap">
+
+  <!-- ── Sidebar ── -->
+  <nav class="sidebar">
+    <div class="sidebar-title">Conteúdo</div>
+    <ul class="toc-list">
+      <li><a href="#o-que-e">O que é</a></li>
+      <li><a href="#instalacao">Instalação</a></li>
+      <li><a href="#interface">Interface</a></li>
+      <li class="toc-h2"><a href="#toolbar">Toolbar</a></li>
+      <li class="toc-h2"><a href="#property-filter">Property Filter</a></li>
+      <li class="toc-h2"><a href="#comp-bar">Comp Bar</a></li>
+      <li class="toc-h2"><a href="#arvore">Árvore de layers</a></li>
+      <li class="toc-h2"><a href="#editor">Editor de código</a></li>
+      <li class="toc-h2"><a href="#diff">Diff / Original</a></li>
+      <li><a href="#action-bar">Action Bar</a></li>
+      <li><a href="#code-editor">Code Editor</a></li>
+      <li><a href="#bulk-replace">Bulk Replace</a></li>
+      <li class="toc-h2"><a href="#exact-match">Exact Match</a></li>
+      <li class="toc-h2"><a href="#pattern-mode">Pattern Mode</a></li>
+      <li><a href="#fluxo">Fluxo de trabalho</a></li>
+      <li><a href="#atalhos">Atalhos</a></li>
+      <li><a href="#dicas">Dicas</a></li>
+      <li><a href="#arquivos">Estrutura de arquivos</a></li>
+    </ul>
+  </nav>
+
+  <!-- ── Main ── -->
+  <main class="content">
+
+    <!-- Cover -->
+    <div class="cover">
+      <div class="cover-badge">CEP Extension · Adobe After Effects</div>
+      <h1><span>AE</span> Expression Editor</h1>
+      <p class="subtitle">Edite, filtre e aplique expressions em múltiplas layers — tudo em um único painel.</p>
+      <div class="cover-meta">
+        <span class="cover-tag">⚡ v2.0</span>
+        <span class="cover-tag">🎨 4 temas</span>
+        <span class="cover-tag">⇄ Bulk Replace</span>
+        <span class="cover-tag">🔍 Property Filter</span>
+      </div>
+    </div>
+
+    <!-- ── O que é ── -->
+    <section id="o-que-e">
+      <h1 class="section"><span class="section-icon">?</span>O que é esta extension?</h1>
+      <p>O <strong>AE Expression Editor</strong> é um painel CEP (Common Extensibility Platform) para o Adobe After Effects que permite visualizar, editar e aplicar expressions de múltiplas layers e propriedades de uma composição — tudo em um único lugar, sem precisar abrir cada layer individualmente na timeline.</p>
+      <p>A extension lista as propriedades com expressions, exibe o código completo e oferece ferramentas para buscar, filtrar, modificar e aplicar alterações em massa. A aba <strong>Code Editor</strong> também permite editar Scripts e Expressions em documentos separados.</p>
+    </section>
+
+    <hr>
+
+    <!-- ── Instalação ── -->
+    <section id="instalacao">
+      <h1 class="section"><span class="section-icon">📦</span>Instalação</h1>
+
+      <h2 class="sub">Requisitos</h2>
+      <ul class="doc-list">
+        <li>Adobe After Effects 2022 ou superior para editar expressions a partir do Scan; versões anteriores ainda precisam de validação prática.</li>
+        <li>CEP extensions habilitadas (debug mode ativo)</li>
+      </ul>
+
+      <h2 class="sub">Passos</h2>
+      <ol class="steps">
+        <li>Copie a pasta <code>AE-ExpressionEditor</code> para o diretório de extensions do seu sistema:<br><br>
+          <strong>Windows:</strong><br>
+          <code>C:\Program Files (x86)\Common Files\Adobe\CEP\extensions\</code><br><br>
+          <strong>macOS:</strong><br>
+          <code>/Library/Application Support/Adobe/CEP/extensions/</code>
+        </li>
+        <li>Habilite extensões não-assinadas adicionando a chave <code>PlayerDebugMode = 1</code> no registro (Windows) ou no arquivo plist (macOS).</li>
+        <li>Reinicie o After Effects.</li>
+        <li>Acesse o painel em <strong>Window → Extensions → AE Expression Editor</strong>.</li>
+      </ol>
+    </section>
+
+    <hr>
+
+    <!-- ── Interface ── -->
+    <section id="interface">
+      <h1 class="section"><span class="section-icon">🖥</span>Interface</h1>
+
+      <h2 class="sub" id="toolbar">Toolbar (barra de ferramentas)</h2>
+      <table class="feat-table">
+        <thead><tr><th>Campo / Botão</th><th>O que faz</th></tr></thead>
+        <tbody>
+          <tr><td>⟳ Scan</td><td>Escaneia a composição ativa. Se houver layers selecionadas na timeline, escaneia apenas elas. Caso contrário, escaneia todas as layers da comp.</td></tr>
+          <tr><td>⊞ Expand</td><td>Expande todas as layers na árvore, mostrando todas as expressions.</td></tr>
+          <tr><td>⊟ Collapse</td><td>Colapsa todas as layers e fecha os editores de código abertos.</td></tr>
+          <tr><td>Filter input</td><td>Campo de texto para filtrar layers por nome, caminho de propriedade ou conteúdo da expression. A busca acontece em tempo real.</td></tr>
+          <tr><td>⇄ Bulk Replace</td><td>Abre o modal de substituição em massa de expressions.</td></tr>
+          <tr><td>Theme select</td><td>Alterna entre os temas visuais: AE Dark, AE Light, Dark e Light.</td></tr>
+          <tr><td>AE vX.X</td><td>Badge exibindo a versão do After Effects conectado.</td></tr>
+        </tbody>
+      </table>
+
+      <h2 class="sub" id="property-filter">Property Filter</h2>
+      <p>Barra expansível (clique no cabeçalho para abrir) que permite filtrar as propriedades exibidas após o Scan.</p>
+      <table class="feat-table">
+        <thead><tr><th>Campo / Elemento</th><th>O que faz</th></tr></thead>
+        <tbody>
+          <tr><td>Chips pré-definidos</td><td>Botões rápidos para as propriedades mais comuns: Position, Scale, Rotation, Opacity, Path, Fill Color, etc.</td></tr>
+          <tr><td>Chips verdes (✦)</td><td>Após um Scan, os chips e tags que correspondem a propriedades com expressions encontradas ficam verdes, indicando visualmente quais propriedades têm expressions na comp atual.</td></tr>
+          <tr><td>Add custom property</td><td>Campo de texto com autocomplete: ao clicar ou digitar, exibe sugestões de propriedades (incluindo as encontradas no último Scan). Use setas ↑↓ para navegar, Enter para selecionar.</td></tr>
+          <tr><td>Tags ativas</td><td>Exibem os filtros em uso. Clique no ✕ para remover individualmente. Ficam verdes quando a propriedade foi encontrada no Scan.</td></tr>
+          <tr><td>Clear</td><td>Remove todos os filtros de propriedade de uma vez.</td></tr>
+        </tbody>
+      </table>
+
+      <h2 class="sub" id="comp-bar">Comp Bar</h2>
+      <p>Barra que exibe o nome da composição ativa e o número de layers (e quantas estão selecionadas). Atualizada automaticamente a cada Scan.</p>
+
+      <h2 class="sub" id="arvore">Árvore de layers e expressions</h2>
+      <p>Após o Scan, a área principal exibe uma árvore organizada por layer. Cada layer pode ser expandida ou colapsada clicando no seu cabeçalho.</p>
+
+      <h3 class="sub3">Cabeçalho da layer</h3>
+      <table class="feat-table">
+        <thead><tr><th>Elemento</th><th>O que faz</th></tr></thead>
+        <tbody>
+          <tr><td>Ícone de tipo</td><td>🎥 Camera, 💡 Light, T Text, ⬡ Shape, ✚ Null, ▣ AV Layer.</td></tr>
+          <tr><td>Número da layer</td><td>Índice da layer na composição.</td></tr>
+          <tr><td>Nome da layer</td><td>Nome completo, truncado com reticências se necessário.</td></tr>
+          <tr><td>Badge de count</td><td>Número de expressions encontradas nessa layer.</td></tr>
+          <tr><td>Clique</td><td>Expande ou colapsa a lista de expressions da layer.</td></tr>
+          <tr><td>Botão direito do mouse</td><td>Abre um menu de contexto com: <strong>Select in timeline</strong> (seleciona a layer no AE) e <strong>Expand this layer</strong> (expande no painel).</td></tr>
+        </tbody>
+      </table>
+
+      <h3 class="sub3">Linha de propriedade</h3>
+      <table class="feat-table">
+        <thead><tr><th>Elemento</th><th>O que faz</th></tr></thead>
+        <tbody>
+          <tr><td>● / ○ (toggle)</td><td>Ativa ou desativa a expression diretamente no AE, sem precisar abrir o editor.</td></tr>
+          <tr><td>Caminho da prop</td><td>Mostra o caminho completo da propriedade, ex: <code>Transform &gt; Position</code>.</td></tr>
+          <tr><td>Preview inline</td><td>Mostra os primeiros 60 caracteres da expression em fonte monospace. Atualizado em tempo real enquanto edita.</td></tr>
+          <tr><td>⎘ Copy</td><td>Copia o código da expression para a área de transferência.</td></tr>
+          <tr><td>🎯 Selected Properties</td><td>Aplica a expression às propriedades selecionadas na timeline.</td></tr>
+          <tr><td>⇉ Selected Layers</td><td>Aplica a expression desta linha à propriedade correspondente de cada layer selecionada na timeline, sem selecionar as propriedades. A operação ativa a expression nos destinos e usa um único Undo Group. Se alguma layer não tiver um destino único, nenhuma é alterada; ajuste a seleção e tente novamente.</td></tr>
+          <tr><td>✓ Apply</td><td>Aparece quando há mudanças pendentes. Aplica apenas esta expression no AE.</td></tr>
+          <tr><td>↩ Revert</td><td>Descarta as mudanças pendentes e restaura o valor original.</td></tr>
+          <tr><td>⎌ Undo</td><td>Desfaz a última aplicação, restaurando o valor anterior no AE.</td></tr>
+        </tbody>
+      </table>
+
+      <h2 class="sub" id="editor">Editor de código</h2>
+      <p>Ao clicar na linha de uma propriedade, o editor de código (CodeMirror) é expandido abaixo dela.</p>
+      <table class="feat-table">
+        <thead><tr><th>Recurso</th><th>Descrição</th></tr></thead>
+        <tbody>
+          <tr><td>Sintaxe colorida</td><td>JavaScript syntax highlighting com o tema selecionado na toolbar.</td></tr>
+          <tr><td>Numeração de linhas</td><td>Facilita a leitura de expressions longas.</td></tr>
+          <tr><td>Ctrl+Space</td><td>Ativa o autocomplete de palavras JavaScript.</td></tr>
+          <tr><td>Edição livre</td><td>Qualquer alteração marca a expression como pendente (⚠ Modified).</td></tr>
+        </tbody>
+      </table>
+
+      <h2 class="sub" id="diff">Diff / Original Expression</h2>
+      <p>A barra <strong>⚠ Modified</strong> aparece quando a expression foi modificada mas ainda não foi aplicada.</p>
+      <table class="feat-table">
+        <thead><tr><th>Elemento</th><th>O que faz</th></tr></thead>
+        <tbody>
+          <tr><td>Show original</td><td>Exibe o código original em um bloco destacado com borda laranja, label "Original expression" e fonte monospace legível, alinhado ao editor. Facilita comparar antes e depois.</td></tr>
+          <tr><td>Hide original</td><td>Oculta o bloco do código original.</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <hr>
+
+    <!-- ── Action Bar ── -->
+    <section id="action-bar">
+      <h1 class="section"><span class="section-icon">✓</span>Action Bar &amp; Status Bar</h1>
+
+      <h2 class="sub">Action Bar</h2>
+      <p>Aparece na parte inferior quando há alterações pendentes (não aplicadas).</p>
+      <table class="feat-table">
+        <thead><tr><th>Elemento</th><th>O que faz</th></tr></thead>
+        <tbody>
+          <tr><td>Pending count</td><td>Exibe quantas expressions foram modificadas e aguardam aplicação.</td></tr>
+          <tr><td>Revert All</td><td>Descarta todas as alterações pendentes de uma vez.</td></tr>
+          <tr><td>Apply All</td><td>Aplica todas as alterações no AE de uma só vez, usando um único Undo Group (Ctrl+Z desfaz tudo junto).</td></tr>
+        </tbody>
+      </table>
+
+      <h2 class="sub">Status Bar</h2>
+      <p>Linha fina na parte inferior que exibe mensagens de feedback (ex: <em>"12 expressions in 4 layers · full comp"</em>) e erros em vermelho.</p>
+    </section>
+
+    <hr>
+
+    <section id="code-editor">
+      <h1 class="section"><span class="section-icon">⌨</span>Code Editor</h1>
+      <p>Na aba <strong>Code Editor</strong>, escolha <strong>Script</strong> para executar um script no After Effects ou <strong>Expression</strong> para aplicar o código às propriedades selecionadas na timeline. O texto, nome, caminho do arquivo e estado não salvo são guardados separadamente para cada modo.</p>
+      <p><strong>Open</strong> e <strong>Recent</strong> carregam arquivos; <strong>Save</strong> grava o documento atual e <strong>Save As</strong> escolhe outro destino. Alterações não salvas ficam persistidas localmente. Ao substituir um documento, o rascunho anterior pode ser recuperado em <strong>Recent → Recover drafts</strong>.</p>
+      <p>A <strong>Library</strong> guarda snippets de Script e Expression separadamente. Se você editar um snippet e abrir outro, a edição ainda não salva continua disponível ao voltar. Carregar um snippet no editor cria um novo documento sem vínculo com o arquivo que estava aberto.</p>
+      <p>A marcação local de sintaxe é usada para Expressions quando o projeto está no motor JavaScript. Scripts em ExtendScript e Expressions no motor Legacy são verificados pelo After Effects ao executar ou aplicar, pois usam outra gramática.</p>
+    </section>
+
+    <hr>
+
+    <!-- ── Bulk Replace ── -->
+    <section id="bulk-replace">
+      <h1 class="section"><span class="section-icon">⇄</span>Bulk Replace</h1>
+      <p>O modal de substituição em massa é acessado pelo botão <strong>⇄ Bulk Replace</strong> na toolbar. Permite alterar múltiplas expressions de uma vez, em todas as layers e propriedades escaneadas.</p>
+
+      <div class="callout warn">
+        <span class="callout-icon">⚠</span>
+        <div class="callout-body">
+          <strong>Atenção</strong>
+          O Bulk Replace atua sobre os dados do último Scan. Sempre faça um Scan antes de usar esta função para garantir que a lista está atualizada.
+        </div>
+      </div>
+
+      <h2 class="sub" id="exact-match">Modo: Exact Match</h2>
+      <p>Encontra expressions <strong>idênticas</strong> ao texto digitado no campo "Find" e as substitui pelo conteúdo do campo "Replace". Útil quando a mesma expression se repete em várias layers.</p>
+
+      <h3 class="sub3">Preview — Exact Match</h3>
+      <p>O Preview mostra o texto completo antes e depois, o destino e o estado habilitado de cada proposta. Também informa os itens ignorados:</p>
+      <ul class="doc-list">
+        <li><strong style="color:var(--ok)">Propostas:</strong> expressions idênticas ao texto buscado que serão alteradas.</li>
+        <li><strong style="color:var(--warn)">Itens ignorados:</strong> expressions com edição pendente ou código que não pode ser analisado. Matches similares são contados, mas não alterados.</li>
+      </ul>
+
+      <h2 class="sub" id="pattern-mode">Modo: Pattern (Function Swap)</h2>
+      <p>Substitui o <strong>nome de uma função</strong> em todas as expressions que a contêm, mantendo os <strong>argumentos individuais intactos</strong>.</p>
+
+      <div class="example-pair">
+        <div class="example-before">
+          <div class="example-label">Antes</div>
+          <pre><code>loopOut("cycle")
+loopOut("pingpong")
+loopOut("continue")</code></pre>
+        </div>
+        <div class="example-after">
+          <div class="example-label">Depois (Find: loopOut → loopIn)</div>
+          <pre><code>loopIn("cycle")
+loopIn("pingpong")
+loopIn("continue")</code></pre>
+        </div>
+      </div>
+
+      <div class="callout ok">
+        <span class="callout-icon">✓</span>
+        <div class="callout-body">
+          <strong>Dica</strong>
+          O Pattern Mode identifica chamadas de função na estrutura do código. Nomes em strings, comentários e declarações não são alterados. Por exemplo, ao buscar <code>loopOut</code>, <code>loopOutDuration</code> não é afetado.
+        </div>
+      </div>
+
+      <h2 class="sub">Botões do modal</h2>
+      <table class="feat-table">
+        <thead><tr><th>Botão</th><th>O que faz</th></tr></thead>
+        <tbody>
+          <tr><td>Preview matches</td><td>Mostra todas as expressions que serão afetadas, com preview da transformação, antes de aplicar qualquer mudança.</td></tr>
+          <tr><td>Cancel</td><td>Fecha o modal sem fazer alterações.</td></tr>
+          <tr><td>Apply to all matches</td><td>Aplica as substituições em todos os matches. A operação é registrada como um único Undo Group no AE.</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <hr>
+
+    <!-- ── Fluxo ── -->
+    <section id="fluxo">
+      <h1 class="section"><span class="section-icon">▶</span>Fluxo de trabalho recomendado</h1>
+      <ol class="steps">
+        <li><strong>Scan</strong> — Clique em Scan (ou selecione layers específicas antes de clicar).</li>
+        <li><strong>Filtrar (opcional)</strong> — Use o Property Filter para focar em propriedades específicas, ou o campo de texto para buscar por nome de layer ou conteúdo de expression.</li>
+        <li><strong>Editar</strong> — Clique em uma propriedade para abrir o editor. Edite o código. Use "Show original" para comparar com o estado anterior.</li>
+        <li><strong>Aplicar</strong> — Clique em Apply individual ou use "Apply All" para aplicar todas as mudanças pendentes de uma vez.</li>
+        <li><strong>Bulk Replace (quando necessário)</strong> — Para alterações em massa, abra o Bulk Replace, escolha o modo, faça o Preview e aplique.</li>
+      </ol>
+    </section>
+
+    <hr>
+
+    <!-- ── Atalhos ── -->
+    <section id="atalhos">
+      <h1 class="section"><span class="section-icon">⌨</span>Atalhos</h1>
+      <table class="feat-table">
+        <thead><tr><th>Ação</th><th>Como fazer</th></tr></thead>
+        <tbody>
+          <tr><td>Autocomplete JS</td><td><kbd>Ctrl</kbd> + <kbd>Space</kbd> no editor de código</td></tr>
+          <tr><td>Abrir/fechar editor</td><td>Clique na linha da propriedade</td></tr>
+          <tr><td>Expandir/colapsar layer</td><td>Clique no cabeçalho da layer</td></tr>
+          <tr><td>Menu de contexto da layer</td><td>Botão direito no cabeçalho da layer</td></tr>
+          <tr><td>Navegar autocomplete</td><td><kbd>↑</kbd> <kbd>↓</kbd> no campo de propriedade</td></tr>
+          <tr><td>Selecionar sugestão</td><td><kbd>Enter</kbd> no campo de propriedade</td></tr>
+          <tr><td>Fechar autocomplete</td><td><kbd>Esc</kbd> no campo de propriedade</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <hr>
+
+    <!-- ── Dicas ── -->
+    <section id="dicas">
+      <h1 class="section"><span class="section-icon">💡</span>Dicas e observações</h1>
+
+      <div class="callout tip">
+        <span class="callout-icon">💡</span>
+        <div class="callout-body">
+          <strong>Escopo automático</strong>
+          Se você selecionar layers na timeline antes de clicar em Scan, a extension escaneará apenas essas layers. Útil para trabalhar em uma seção específica da comp sem poluir a lista.
+        </div>
+      </div>
+
+      <div class="callout tip">
+        <span class="callout-icon">💡</span>
+        <div class="callout-body">
+          <strong>Undo no AE</strong>
+          Cada "Apply All" e cada operação de Bulk Replace cria um único Undo Group no After Effects. Um único <kbd>Ctrl+Z</kbd> no AE desfaz todas as alterações aplicadas naquela operação.
+        </div>
+      </div>
+
+      <div class="callout ok">
+        <span class="callout-icon">✦</span>
+        <div class="callout-body">
+          <strong>Chips verdes</strong>
+          Depois de um Scan, os chips do Property Filter ficam verdes quando aquela propriedade tem ao menos uma expression na composição. Ajuda a identificar rapidamente quais propriedades têm expressions sem precisar escanear.
+        </div>
+      </div>
+
+      <div class="callout warn">
+        <span class="callout-icon">⚠</span>
+        <div class="callout-body">
+          <strong>Dados do Scan</strong>
+          A extension trabalha com o snapshot do último Scan. Se você alterar expressions diretamente no AE (fora da extension), faça um novo Scan para sincronizar os dados.
+        </div>
+      </div>
+    </section>
+
+    <hr>
+
+    <!-- ── Arquivos ── -->
+    <section id="arquivos">
+      <h1 class="section"><span class="section-icon">📁</span>Estrutura de arquivos</h1>
+      <div class="file-tree">
+        <span class="ft-root">AE-ExpressionEditor/</span><br>
+        ├── <span class="ft-file">index.html</span>        <span class="ft-desc">— Interface HTML principal do painel</span><br>
+        ├── <span class="ft-dir">css/</span><br>
+        │   └── <span class="ft-file">panel.css</span>     <span class="ft-desc">— Estilos, temas e componentes visuais</span><br>
+        ├── <span class="ft-dir">js/</span><br>
+        │   └── <span class="ft-file">panel.js</span>      <span class="ft-desc">— Lógica: scan, editores, filtros, Bulk Replace, context menu</span><br>
+        ├── <span class="ft-dir">jsx/</span><br>
+        │   └── <span class="ft-file">host.jsx</span>      <span class="ft-desc">— ExtendScript: leitura/escrita de expressions no AE</span><br>
+        ├── <span class="ft-dir">lib/</span><br>
+        │   └── <span class="ft-file">CSInterface.js</span> <span class="ft-desc">— Biblioteca Adobe para comunicação HTML↔ExtendScript</span><br>
+        └── <span class="ft-dir">CSXS/</span><br>
+            └── <span class="ft-file">manifest.xml</span>  <span class="ft-desc">— Manifesto: ID, versão e compatibilidade com o AE</span>
+      </div>
+
+      <table class="feat-table">
+        <thead><tr><th>Arquivo</th><th>Responsabilidade</th></tr></thead>
+        <tbody>
+          <tr><td>index.html</td><td>Estrutura HTML de todos os componentes: toolbar, property filter, árvore, modal de Bulk Replace.</td></tr>
+          <tr><td>css/panel.css</td><td>Todos os estilos visuais, incluindo os 4 temas (AE Dark, AE Light, Dark, Light) e todos os componentes.</td></tr>
+          <tr><td>js/panel.js</td><td>Toda a lógica da interface: scan, renderização da árvore, CodeMirror, filtros, autocomplete, Bulk Replace e menu de contexto.</td></tr>
+          <tr><td>jsx/host.jsx</td><td>Scripts ExtendScript que rodam dentro do AE: leitura de expressions, escrita, toggle e seleção de layers na timeline.</td></tr>
+          <tr><td>lib/CSInterface.js</td><td>Biblioteca padrão Adobe para comunicação entre o painel (HTML/JS) e o After Effects (ExtendScript).</td></tr>
+          <tr><td>CSXS/manifest.xml</td><td>Manifesto da extension com ID, versão e compatibilidade com versões do AE.</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <div class="footer">
+      AE Expression Editor v2.0 &nbsp;·&nbsp; Documentação gerada automaticamente
+    </div>
+
+  </main>
+</div>
+
+<script>
+  // Highlight active TOC item on scroll
+  var sections = document.querySelectorAll("section[id], div.cover");
+  var tocLinks = document.querySelectorAll(".toc-list li");
+
+  function onScroll() {
+    var scrollY = window.scrollY + 80;
+    var current = "";
+    sections.forEach(function(s) {
+      if (s.offsetTop <= scrollY) current = s.id || "cover";
+    });
+    tocLinks.forEach(function(li) {
+      var a = li.querySelector("a");
+      if (a) {
+        var href = a.getAttribute("href").replace("#", "");
+        li.classList.toggle("active", href === current);
+      }
+    });
+  }
+  window.addEventListener("scroll", onScroll);
+  onScroll();
+</script>
+</body>
+</html>

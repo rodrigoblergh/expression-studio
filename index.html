@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>AE Expression Editor</title>
+    <link rel="stylesheet" href="lib/cm/css/codemirror.min.css">
+    <link rel="stylesheet" href="lib/cm/css/show-hint.min.css">
+    <link rel="stylesheet" href="css/panel.css">
+</head>
+<body class="ae-dark">
+
+<!-- ── Master Tabs ── -->
+<div id="master-tabs">
+    <button class="master-tab active" data-target="expr-container">✦ Expressions</button>
+    <button class="master-tab" data-target="script-container">⌨ Code Editor</button>
+</div>
+
+<div id="update-bar" style="padding:4px 8px;font-size:11px;flex-shrink:0;">
+    <button class="btn" id="check-updates" title="Check published releases; installation requires approval">Check for updates</button>
+    <span id="update-status" role="status" aria-live="polite"></span>
+</div>
+
+<div id="expr-container" class="master-container active">
+<div id="app">
+
+    <!-- ── Toolbar ── -->
+    <div id="toolbar">
+        <button class="btn btn-scan" id="btn-scan" title="Scan expressions (auto-detects scope)">⟳ Scan</button>
+        <button class="btn" id="btn-library" title="Open Expression Snippet Library">📚 Library</button>
+        <div class="toolbar-sep"></div>
+        <button class="btn" id="btn-expand-all"  title="Expand all layers">⊞ Expand</button>
+        <button class="btn" id="btn-collapse-all" title="Collapse all layers">⊟ Collapse</button>
+        <div class="toolbar-sep"></div>
+
+        <!-- Search filter -->
+        <input type="text" id="filter-input" placeholder="Filter layers / expressions…" spellcheck="false" autocomplete="off">
+        <button class="btn-icon-only" id="btn-filter-clear" title="Clear filter">✕</button>
+
+        <div class="toolbar-spacer"></div>
+        <button class="btn" id="btn-bulk-replace" title="Bulk Replace expressions across all layers">⇄ Bulk Replace</button>
+        <div class="toolbar-sep"></div>
+        <select id="theme-select" title="Theme">
+            <option value="ae-dark">AE Dark</option>
+            <option value="ae-light">AE Light</option>
+            <option value="custom-dark">Dark</option>
+            <option value="custom-light">Light</option>
+        </select>
+        <span id="ae-version">AE</span>
+    </div>
+
+    <!-- ── Property filter bar ── -->
+    <div id="prop-filter-bar">
+        <div id="prop-filter-header" onclick="togglePropFilter()">
+            <span id="prop-filter-label">Property Filter <span id="prop-filter-badge" class="hidden">0</span></span>
+            <span id="prop-filter-chevron">▸</span>
+        </div>
+        <div id="prop-filter-body" class="hidden">
+            <!-- Common property chips -->
+            <div id="prop-chips">
+                <button class="prop-chip" data-prop="Position">Position</button>
+                <button class="prop-chip" data-prop="X Position">X Position</button>
+                <button class="prop-chip" data-prop="Y Position">Y Position</button>
+                <button class="prop-chip" data-prop="Scale">Scale</button>
+                <button class="prop-chip" data-prop="Rotation">Rotation</button>
+                <button class="prop-chip" data-prop="Opacity">Opacity</button>
+                <button class="prop-chip" data-prop="Anchor Point">Anchor Point</button>
+                <button class="prop-chip" data-prop="Source Text">Source Text</button>
+                <button class="prop-chip" data-prop="Path">Path</button>
+                <button class="prop-chip" data-prop="Fill Color">Fill Color</button>
+                <button class="prop-chip" data-prop="Stroke Color">Stroke Color</button>
+                <button class="prop-chip" data-prop="Stroke Width">Stroke Width</button>
+            </div>
+            <!-- Custom property input -->
+            <div id="prop-custom-row" style="position:relative;">
+                <input type="text" id="prop-custom-input" placeholder="Add custom property name…" spellcheck="false" autocomplete="off">
+                <button class="btn" id="btn-prop-add">Add</button>
+                <button class="btn" id="btn-prop-clear-all" title="Clear all filters">Clear</button>
+                <div id="prop-autocomplete-list" class="hidden"></div>
+            </div>
+            <!-- Active filter tags -->
+            <div id="prop-active-tags"></div>
+        </div>
+    </div>
+
+    <!-- ── Comp info bar ── -->
+    <div id="comp-bar">
+        <span id="comp-name">No active comp</span>
+        <span id="comp-stats"></span>
+    </div>
+
+    <!-- ── Timeline tree ── -->
+    <div id="tree-wrapper">
+        <div id="tree-empty">
+            <div class="empty-icon">⟳</div>
+            <div>Click <strong>Scan</strong> to load expressions from the active comp.</div>
+        </div>
+        <div id="tree"></div>
+    </div>
+
+    <!-- ── Bottom action bar ── -->
+    <div id="action-bar" class="hidden">
+        <span id="pending-count">0 pending changes</span>
+        <div class="action-group">
+            <button class="btn btn-revert" id="btn-revert-all">Revert All</button>
+            <button class="btn btn-apply"  id="btn-apply-all">Apply All</button>
+        </div>
+    </div>
+
+    <!-- ── Status bar ── -->
+    <div id="status-bar">
+        <span id="status-msg"></span>
+        <span id="change-badge" class="hidden">0 changed</span>
+    </div>
+
+    <!-- ── Bulk Replace Modal ── -->
+    <div id="bulk-modal-overlay">
+        <div id="bulk-modal">
+            <h3>⇄ Bulk Replace</h3>
+
+            <div class="bm-mode-row">
+                <button class="bm-mode-btn active" id="bm-mode-exact" onclick="setBulkMode('exact')">Exact match</button>
+                <button class="bm-mode-btn" id="bm-mode-pattern" onclick="setBulkMode('pattern')">Pattern (function swap)</button>
+            </div>
+
+            <!-- Exact mode -->
+            <div id="bm-exact-fields">
+                <div class="bm-field">
+                    <span class="bm-label">Find expression (exact)</span>
+                    <textarea class="bm-textarea" id="bm-find" placeholder="e.g. content(&quot;Shape 2&quot;).content(&quot;Path 4&quot;).path"></textarea>
+                </div>
+                <div class="bm-field">
+                    <span class="bm-label">Replace with</span>
+                    <textarea class="bm-textarea" id="bm-replace" placeholder="New expression…"></textarea>
+                </div>
+            </div>
+
+            <!-- Pattern mode -->
+            <div id="bm-pattern-fields" style="display:none;">
+                <div class="bm-field">
+                    <span class="bm-label">Find function name</span>
+                    <input class="bm-input" id="bm-func-find" placeholder="e.g. loopOut">
+                </div>
+                <div class="bm-field">
+                    <span class="bm-label">Replace with function name</span>
+                    <input class="bm-input" id="bm-func-replace" placeholder="e.g. loopIn">
+                </div>
+                <p class="bm-hint">
+                    Replaces the function name but <strong>keeps all arguments unchanged</strong>.<br>
+                    Ex: <code>loopOut("pingpong")</code> → <code>loopIn("pingpong")</code>
+                </p>
+            </div>
+
+            <div class="bm-results" id="bm-results"></div>
+
+            <div class="bm-footer">
+                <button class="btn" id="btn-bulk-preview" onclick="doBulkPreview()">Preview matches</button>
+                <button id="btn-bulk-cancel" onclick="closeBulkModal()">Cancel</button>
+                <button id="btn-bulk-trigger" onclick="doBulkApply()">Apply to all matches</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── Expression Library Modal ── -->
+    <div id="lib-modal-overlay">
+        <div id="lib-modal">
+            <div id="lib-sidebar">
+                <div id="lib-sidebar-header">
+                    <h3>Snippets</h3>
+                    <button class="btn btn-icon-only" id="btn-lib-add" title="New Snippet">✚</button>
+                </div>
+                <div id="lib-sidebar-search-row">
+                    <input type="text" id="lib-search" placeholder="Search title or code..." spellcheck="false" autocomplete="off">
+                </div>
+                <div id="lib-list"></div>
+            </div>
+            
+            <div id="lib-editor-area">
+                <div id="lib-editor-header">
+                    <input type="text" id="lib-snippet-title" placeholder="Snippet Title..." spellcheck="false" autocomplete="off">
+                </div>
+                <div id="lib-editor-wrap">
+                    <textarea id="lib-editor-ta"></textarea>
+                </div>
+                <div id="lib-editor-footer">
+                    <div id="lib-status"></div>
+                    <div class="action-group">
+                        <button class="btn" id="btn-lib-close" onclick="closeLibModal()">Close</button>
+                        <button class="btn" id="btn-lib-delete" style="color:var(--err);border-color:var(--err);" title="Delete this Snippet">🗑 Delete</button>
+                        <div class="toolbar-sep" style="margin:0 4px;"></div>
+                        <button class="btn" id="btn-lib-copy" title="Copy expression to clipboard">⎘ Copy</button>
+                        <button class="btn" id="btn-lib-paste-sel" title="Apply to selected properties in AE">🎯 Paste to Selec.</button>
+                        <button class="btn btn-apply" id="btn-lib-save">Save Snippet</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── Custom Confirm Modal ── -->
+    <div id="custom-confirm-overlay" class="hidden">
+        <div id="custom-confirm-modal">
+            <div id="custom-confirm-title">Warning</div>
+            <div id="custom-confirm-message">Are you sure?</div>
+            <div id="custom-confirm-buttons">
+                <button class="btn" id="btn-confirm-cancel">Cancel</button>
+                <button class="btn btn-run" id="btn-confirm-ok">Continue</button>
+            </div>
+        </div>
+    </div>
+
+</div> <!-- End of #app -->
+</div> <!-- End of #expr-container -->
+
+<div id="script-container" class="master-container">
+    <iframe id="script-iframe" src="script_editor/index.html" title="After Effects script editor"></iframe>
+</div>
+
+<script>
+    // Master Tabs logic
+    document.querySelectorAll('.master-tab').forEach(function(tab) {
+        tab.addEventListener('click', function() {
+            var targetId = this.getAttribute('data-target');
+            
+            document.querySelectorAll('.master-tab').forEach(function(t) { t.classList.remove('active'); });
+            document.querySelectorAll('.master-container').forEach(function(c) { c.classList.remove('active'); });
+            
+            this.classList.add('active');
+            document.getElementById(targetId).classList.add('active');
+        });
+    });
+</script>
+
+<script src="lib/cm/codemirror.min.js"></script>
+<script src="lib/cm/mode/javascript/javascript.min.js"></script>
+<script src="lib/cm/addon/edit/matchbrackets.min.js"></script>
+<script src="lib/cm/addon/edit/closebrackets.min.js"></script>
+<script src="lib/cm/addon/hint/show-hint.min.js"></script>
+<script src="lib/cm/addon/hint/javascript-hint.min.js"></script>
+<script src="lib/cm/addon/search/searchcursor.min.js"></script>
+<script src="lib/cm/beautify.min.js"></script>
+
+<script src="lib/acorn/acorn.js"></script>
+<script src="lib/acorn/walk.js"></script>
+<script src="js/ae-docs.js"></script>
+<script src="js/annotator.js"></script>
+<script src="js/ae-hint.js"></script>
+
+<script src="lib/CSInterface.js"></script>
+<script src="js/panel.js" defer></script>
+<script src="js/updates.js" defer></script>
+</body>
+</html>

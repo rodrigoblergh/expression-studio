@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AE Script Editor</title>
+    <link rel="stylesheet" href="css/codemirror.min.css">
+    <link rel="stylesheet" href="css/show-hint.min.css">
+    <link rel="stylesheet" href="css/foldgutter.min.css">
+    <link rel="stylesheet" href="css/panel.css">
+</head>
+<body class="ae-dark">
+
+<div id="app">
+
+    <!-- ── Toolbar ── -->
+    <div id="toolbar">
+        <!-- ── Mode Switcher ── -->
+        <div class="mode-switch" id="mode-switch" title="Switch editor mode between Script and Expression">
+            <button class="mode-btn active" id="mode-btn-script" data-mode="script">⌨ Script</button>
+            <button class="mode-btn" id="mode-btn-expr" data-mode="expression">✦ Expression</button>
+        </div>
+        <div class="toolbar-sep"></div>
+
+        <button class="btn btn-run" id="btn-run" title="Run Script in AE (Ctrl+Enter)">▶ Run</button>
+        <button class="btn hidden" id="btn-pull-expr" title="Pull expression from selected property in timeline">📥 Pull from Selec.</button>
+        <button class="btn" id="btn-library" title="Open Snippet Library">📚 Library</button>
+        <div class="toolbar-sep"></div>
+        <button class="btn" id="btn-new" title="New file">New</button>
+        <button class="btn" id="btn-open" title="Open file">Open</button>
+        <div class="recent-wrapper">
+            <button class="btn" id="btn-recent" title="Recent files">Recent ▾</button>
+            <div id="recent-menu"></div>
+        </div>
+        <button class="btn" id="btn-save" title="Save">Save</button>
+        <button class="btn" id="btn-save-as" title="Save As">Save As</button>
+        <button class="btn" id="btn-format" title="Format code">Format</button>
+        <button class="btn" id="btn-annotate" title="Auto-Comment via AST">🪄 Annotate</button>
+        <button class="btn" id="btn-remove-comments" title="Remove all comments">🧹 Clean</button>
+        <div class="toolbar-sep"></div>
+        <input type="text" id="file-title" value="Untitled" title="File name" placeholder="Untitled" spellcheck="false">
+        <div class="toolbar-spacer"></div>
+        <select id="theme-select" title="Theme">
+            <option value="ae-dark">AE Dark</option>
+            <option value="ae-light">AE Light</option>
+            <option value="custom-dark">Dark</option>
+            <option value="custom-light">Light</option>
+        </select>
+        <span id="ae-version">AE</span>
+    </div>
+
+    <!-- ── Search / Replace Bar ── -->
+    <div id="search-bar" class="hidden">
+        <div id="search-row">
+            <input type="text" id="search-input" placeholder="Find…" spellcheck="false" autocomplete="off">
+            <span id="search-count"></span>
+            <button class="sb-btn" id="btn-prev" title="Previous">▲</button>
+            <button class="sb-btn" id="btn-next" title="Next">▼</button>
+            <button class="sb-btn" id="btn-toggle-replace" title="Toggle replace">⇄</button>
+            <button class="sb-btn sb-close" id="btn-search-close" title="Close (Esc)">✕</button>
+        </div>
+        <div id="replace-row" class="hidden">
+            <input type="text" id="replace-input" placeholder="Replace with…" spellcheck="false" autocomplete="off">
+            <button class="sb-btn" id="btn-replace-one">Replace</button>
+            <button class="sb-btn" id="btn-replace-all">All</button>
+        </div>
+    </div>
+
+    <!-- ── Editor ── -->
+    <div id="editor-wrapper">
+        <textarea id="code-editor"></textarea>
+    </div>
+
+    <!-- ── Output / Debug ── -->
+    <div id="output-wrapper">
+        <div id="output-header">
+            <div id="output-tabs">
+                <button class="out-tab active" data-tab="console">Console</button>
+                <button class="out-tab" data-tab="errors">
+                    Errors <span id="error-badge" class="hidden">0</span>
+                </button>
+            </div>
+            <button class="btn-small" id="btn-clear-output">Clear</button>
+        </div>
+        <!-- Console tab -->
+        <div id="tab-console" class="tab-panel">
+            <div id="output"></div>
+        </div>
+        <!-- Errors tab -->
+        <div id="tab-errors" class="tab-panel hidden">
+            <div id="error-list"></div>
+        </div>
+    </div>
+
+    <!-- ── Shortcuts ── -->
+    <div id="shortcuts-bar">
+        <span class="shortcut" id="sc-run"><kbd>Ctrl+Enter</kbd> <span id="sc-run-text">Run</span></span>
+        <span class="shortcut"><kbd>Ctrl+F</kbd> Find</span>
+        <span class="shortcut"><kbd>Ctrl+Space</kbd> Autocomplete</span>
+    </div>
+
+    <!-- ── Script Library Modal ── -->
+    <div id="lib-modal-overlay">
+        <div id="lib-modal">
+            <div id="lib-sidebar">
+                <div id="lib-sidebar-header">
+                    <h3>Snippets</h3>
+                    <button class="btn btn-icon-only" id="btn-lib-add" title="New Snippet">✚</button>
+                </div>
+                <div id="lib-sidebar-search-row">
+                    <input type="text" id="lib-search" placeholder="Search title or code..." spellcheck="false" autocomplete="off">
+                </div>
+                <div id="lib-list"></div>
+            </div>
+            
+            <div id="lib-editor-area">
+                <div id="lib-editor-header">
+                    <input type="text" id="lib-snippet-title" placeholder="Snippet Title..." spellcheck="false" autocomplete="off">
+                </div>
+                <div id="lib-editor-wrap">
+                    <textarea id="lib-editor-ta"></textarea>
+                </div>
+                <div id="lib-editor-footer">
+                    <div id="lib-status"></div>
+                    <div class="action-group" style="display:flex;gap:4px;">
+                        <button class="btn" id="btn-lib-close" onclick="closeLibModal()">Close</button>
+                        <button class="btn" id="btn-lib-delete" style="color:var(--err);border-color:var(--err);" title="Delete this Snippet">🗑 Delete</button>
+                        <div class="toolbar-sep" style="margin:0 4px;"></div>
+                        <button class="btn" id="btn-lib-copy" title="Copy script to clipboard">⎘ Copy</button>
+                        <button class="btn" id="btn-lib-paste-sel" title="Load script into Editor">🎯 Load to Editor</button>
+                        <button class="btn btn-apply" id="btn-lib-save" style="background:var(--acc);color:#fff;border-color:var(--acc);">Save Snippet</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    </div>
+    
+    <!-- ── Custom Confirm Modal ── -->
+    <div id="custom-confirm-overlay" class="hidden">
+        <div id="custom-confirm-modal">
+            <div id="custom-confirm-title">Warning</div>
+            <div id="custom-confirm-message">Are you sure?</div>
+            <div id="custom-confirm-buttons">
+                <button class="btn" id="btn-confirm-cancel">Cancel</button>
+                <button class="btn btn-run" id="btn-confirm-ok">Continue</button>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<script src="lib/5.65.16/codemirror.min.js"></script>
+<script src="lib/5.65.16/mode/javascript.min.js"></script>
+<script src="lib/5.65.16/addon/edit/matchbrackets.min.js"></script>
+<script src="lib/5.65.16/addon/edit/closebrackets.min.js"></script>
+<script src="lib/5.65.16/addon/hint/show-hint.min.js"></script>
+<script src="lib/5.65.16/addon/hint/javascript-hint.min.js"></script>
+<script src="lib/5.65.16/addon/fold/foldcode.min.js"></script>
+<script src="lib/5.65.16/addon/fold/foldgutter.min.js"></script>
+<script src="lib/5.65.16/addon/fold/brace-fold.min.js"></script>
+<script src="lib/5.65.16/addon/fold/comment-fold.min.js"></script>
+<script src="lib/5.65.16/addon/search/searchcursor.min.js"></script>
+<script src="lib/beautify.min.js"></script>
+<script src="../lib/acorn/acorn.js"></script>
+<script src="../lib/acorn/walk.js"></script>
+<script src="../js/ae-docs.js"></script>
+<script src="../js/annotator.js"></script>
+<script src="../js/ae-hint.js"></script>
+
+<script src="lib/CSInterface.js"></script>
+<script src="js/panel.js" defer></script>
+
+</body>
+</html>
