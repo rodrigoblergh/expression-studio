@@ -1,6 +1,6 @@
 {
   "name": "expression-studio",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "private": true,
   "description": "After Effects expression and script editor CEP extension",
   "scripts": {

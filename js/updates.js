@@ -1,7 +1,7 @@
 /* User-initiated update discovery. Never downloads or executes an update. */
 (function (root) {
     "use strict";
-    var CURRENT_VERSION = "1.0.2";
+    var CURRENT_VERSION = "1.0.3";
     var REPO_URL = "https://github.com/rodrigoblergh/expression-studio";
     var API_URL = "https://api.github.com/repos/rodrigoblergh/expression-studio/releases/latest";
     function versionParts(value) {

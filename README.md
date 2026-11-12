@@ -2,11 +2,11 @@
 
 An After Effects CEP panel combining an expression browser/editor and a script editor. The extension ID is retained to preserve installation identity and preferences.
 
-Version **1.0.2** is a review candidate. It adds persistent expression drafts, accessible dialogs and tabs, shared host operations, and signed, approval-based update helpers. Local automated/browser checks and 13 live Windows AE host checks pass. The committed baseline passed Windows, macOS and Linux CI; newer working-tree updater changes require a fresh CI run. Live macOS and complete CEP interaction acceptance remain pending. The original manifest advertises AE 16–99.9, which is not a validated support claim; expression editing requires stable layer IDs available in AE 2022 or newer.
+Version **1.0.3** is a review candidate. It adds persistent expression drafts, accessible dialogs and tabs, shared host operations, and signed, approval-based update helpers. Local automated/browser checks and 13 live Windows AE host checks pass. The committed baseline passed Windows, macOS and Linux CI; newer working-tree updater changes require a fresh CI run. Live macOS and complete CEP interaction acceptance remain pending. The original manifest advertises AE 16–99.9, which is not a validated support claim; expression editing requires stable layer IDs available in AE 2022 or newer.
 
 ## Install for evaluation
 
-Download the ZIP artifact from a successful **Verify and package** run in GitHub Actions. Extract `AE-ExpressionEditor` into your CEP extensions directory, then open it from After Effects' Extensions menu. The CI ZIP is a CEP development package. A separately signed ZXP 1.0.2 was verified and installed for local Windows evaluation; that does not sign or automatically publish CI ZIP artifacts. Close AE before replacing an existing installation and retain a backup. The GitHub source ZIP is not the installable package.
+Download the ZIP artifact from a successful **Verify and package** run in GitHub Actions. Extract `AE-ExpressionEditor` into your CEP extensions directory, then open it from After Effects' Extensions menu. The CI ZIP is a CEP development package. A separately signed ZXP 1.0.3 was verified and installed for local Windows evaluation; that does not sign or automatically publish CI ZIP artifacts. Close AE before replacing an existing installation and retain a backup. The GitHub source ZIP is not the installable package.
 
 - Windows user directory: `%APPDATA%\Adobe\CEP\extensions`
 - macOS user directory: `~/Library/Application Support/Adobe/CEP/extensions`
