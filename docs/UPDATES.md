@@ -12,6 +12,17 @@ GitHub workflows act on committed/pushed source. They do not watch local edits o
 
 Use the panel's **Check for updates** action to view published stable releases. For Windows, run the bundled `scripts/Update-ExpressionStudio.ps1` to check; use `-Install` only when ready to approve replacement. Save work and close AE first. The helper explains its target and confirms before installation. If no stable release exists it reports that state. macOS updates are manual until a tested native updater exists.
 
+From the extracted extension folder in Windows PowerShell:
+
+```powershell
+# Check only; does not download or install a package.
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\Update-ExpressionStudio.ps1 -CheckOnly
+# Ask for approval, then verify and install the latest stable release.
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\Update-ExpressionStudio.ps1 -Install
+```
+
+The execution-policy setting applies to this invocation only. The target defaults to the per-user CEP folder; an existing target must have the matching extension identity. Installation does not restart AE automatically.
+
 Checksums establish agreement with the repository's release assets, not independent publisher signing. Before wider deployment, add an independently signed release manifest and signed distribution package, following the other Studio extensions' release policy. Do not enable silent installation.
 
 ## Publish a candidate

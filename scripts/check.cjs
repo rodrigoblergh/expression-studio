@@ -2,6 +2,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 const assert = require('node:assert/strict');
+const acorn = require('../lib/acorn/acorn.js');
 const root = path.resolve(__dirname, '..');
 let count = 0;
 function visit(dir) {
@@ -11,6 +12,7 @@ function visit(dir) {
     else if (/\.(js|jsx)$/.test(name)) {
       const code = fs.readFileSync(path.join(root, name), 'utf8').replace(/^\s*#.*$/gm, '');
       new vm.Script(code, {filename: name});
+      if (name.endsWith('.jsx')) acorn.parse(code, {ecmaVersion: 3});
       count++;
     }
   }
@@ -31,4 +33,4 @@ const version = require('../package.json').version;
 assert.ok(manifest.includes(`ExtensionBundleVersion="${version}"`));
 assert.ok(manifest.includes(`Version="${version}"/>`));
 assert.ok(!manifest.includes('--allow-running-insecure-content'));
-console.log(`PASS: ${count} script files parse; HTML assets and manifest version verified.`);
+console.log(`PASS: ${count} script files parse (hosts also checked as ES3); HTML assets and manifest version verified.`);

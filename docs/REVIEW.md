@@ -16,9 +16,9 @@ The supplied ZIP was imported into the initially empty GitHub repository. Three 
 
 ## Verification and update infrastructure
 
-- Dependency-free Node regression tests exercise mocked host/browser behavior, AST preservation and update-response validation.
-- Source checks parse runtime scripts, check referenced HTML assets and ensure manifest version consistency.
-- Windows updater validation tests cover archive paths, checksums and manifest identity; no real installation was performed.
+- All **44 Node regression tests passed** locally, exercising mocked host/browser behavior, AST preservation and update-response validation.
+- Source checks passed for **34 runtime scripts**, including ES3 syntax checks for the four host files, referenced HTML assets and manifest version consistency.
+- All **14 Windows updater validation checks passed**, covering archive paths, checksums and manifest identity; no real installation was performed. The live read-only GitHub check correctly reported no published stable release.
 - GitHub Actions runs tests on Windows/macOS/Linux and produces tested package artifacts. Version tags create draft prereleases.
 - A user-initiated panel check and approval-based Windows update helper prepare installed updates. A stable release is required; none is published by this review.
 
